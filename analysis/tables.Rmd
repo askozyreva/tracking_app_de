@@ -1,0 +1,524 @@
+---
+title: "tables"
+author: "Kozyreva"
+date: "11/30/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+if(!require("pacman")) install.packages("pacman"); library(pacman)
+p_load("tidyverse", "here", "readr", 
+          "kableExtra", "knitr")
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Demographic table is in "figures.rmd"
+
+```{r, warning=FALSE}
+risk_items <- data.frame(
+  Question =c("How severe do you think novel coronavirus (COVID-19) will be for the general population?",
+              "How harmful would it be for your health if you were to become infected COVID-19?", 
+              "How concerned are you that you might become infected with COVID-19?",
+              "How concerned are you that somebody you know might become infected with COVID-19?"),
+  Label =c("Severity for GER population","Harm to your health if infected","Concern I will be infected","Concern someone I know will be infected")
+  )
+
+table <- risk_items %>%
+  kbl() %>%
+  kable_paper("striped", full_width = F, position = "left") 
+table
+
+
+table_risk <- risk_items %>%
+  kbl(format="latex",
+       booktabs = TRUE,
+    caption = "Items querying risks from COVID-19 on a 5-point Likert scale (from 1 = Not at all to 5 = Extremely)\\label{tab:table_risk}",
+    table.envir = "table*") %>% 
+   kable_paper("striped", full_width = F, position = "left")
+table_risk
+write_lines(table_risk , here("output/table_risk.tex"))
+
+
+```
+Scenarios
+```{r}
+scenarios <- data.frame(
+  Scenario =c("Severe",
+              "Mild", 
+              "Bluetooth",
+              "Corona-Warn-App"),
+  Description=c("The COVID-19 pandemic has rapidly become a worldwide threat. Containing the virus' spread is essential to minimise the impact on the healthcare system, the economy, and save many lives. The Government might consider using phone tracking data supplied by telecommunication companies to identify and contact those who may have been exposed to people with COVID-19. This would help reduce community spread by identifying those most at risk and allowing health services to be appropriately targeted. All people using a mobile phone would be included in the project, with no possibility to opt-out. Data would be stored in an encrypted format on a secure server accessible only to the Government which may use the data to locate people who were violating lockdown orders and enforce them with fines and arrests where necessary. Data would also be used to inform the appropriate public health response and to contact those who might have been exposed to COVID-19. Individual quarantine orders could be made on the basis of this data.",
+                "The COVID-19 pandemic has rapidly become a worldwide threat. Containing the virus' spread is essential to minimise the impact on the healthcare system, the economy, and save many lives. The Government might consider using smartphone tracking data to identify and contact those who may have been exposed to people with COVID-19. This would help reduce community spread by identifying those most at risk and allowing health services to be appropriately targeted. Only people who downloaded a government app and agreed to be tracked and contacted would be included in the project. The more people download and use this app, the more effectively the Government would be able to contain the spread of COVID-19. Data would be stored in an encrypted format on a secure server accessible only to the Government. Data would only be used to contact those who might have been exposed to COVID-19.",
+              "The COVID-19 pandemic has rapidly become a worldwide threat. Containing the virus’ spread is essential to minimise the impact on the healthcare system, the economy, and save many lives. Apple and Google have proposed adding a contact tracing capability to existing smartphones to help inform people if they have been exposed to others with COVID-19. This would help reduce community spread of COVID-19 by allowing people to voluntarily self-isolate.  When two people are near each other, their phones would connect via bluetooth. If a person is later identified as being infected, the people they have been in close proximity to are then notified without the government knowing who they are. The use of this contact tracing capability would be completely voluntary. People who are notified would not be informed who had tested positive.",
+              "The Corona-Warn-App app is designed to help detect and break infection chains at an early stage. Currently, the employees of the local health authorities are trying to trace infection chains. With the app, this process can be automated and thus happen much faster and more accurately. Users can be warned immediately if they have been in the vicinity of infected persons. 
+The app was developed by Deutsche Telekom and SAP and published by the Robert Koch Institute. It records which smartphones have come in proximity to each other. To do this, the devices exchange randomly generated crypto keys via Bluetooth. The distance is estimated on the basis of the signal strength. 
+If users test positive for COVID-19, they can share the test result in the app so that users who have been in their vicinity are informed. Infected users are explicitly asked if they want to share the result for contact tracing. As an alternative to digital transmission, validation is available via a Telekom call center. Every 24 hours, the app checks whether one has had contact with a person who has entered the app as infected.
+The app does not evaluate any geo-data and does not transmit any location information. The developers also assure that no personal data is sent or stored. The anonymized contact data is not stored centrally, but locally on the respective smartphone. The comparison of whether an infected person has been encountered is carried out locally on the cell phone. No data leaves the cell phone for matching, according to the developers. Only the anonymized list is stored centrally and regularly retrieved by the smartphones to identify possible problematic encounters."),
+  Wave=c("1,2",
+              "1,2", 
+              "2",
+              "3,4"))
+
+table <- scenarios %>%
+  kbl() %>%
+  kable_paper("striped", full_width = F, position = "left") 
+table
+
+
+table_s <- scenarios %>%
+  kbl(format="latex",
+       booktabs = TRUE,
+    caption = "Scenarios used in 4 waves of the study\\label{tab:scenarios}",
+    table.envir = "table*") %>% 
+   kable_paper("striped", full_width = F, position = "left")
+
+write_lines(table_s , here("output/scenarios .tex"))
+```
+
+
+## Acceptability for Tracking in each Scenario and Corona-Warn-App Downloads
+
+
+
+Bluetooth
+bluetooth_uptake1_bt Wenn Apple und Google, wie in diesem Szenario dargestellt, eine COVID-19-Kontaktverfolgungsfunktion in Smartphones einbauen würden, würden Sie diese nutzen?
+
+bluetooth_uptake2_bt Wenn Apple und Google, wie in diesem Szenario dargestellt, eine COVID-19-Kontaktverfolgungsfunktion in Smartphones einbauen würden, würden Sie diese nutzen?
+
+change_sunset_bt Würde sich Ihre Entscheidung ändern, wenn Apple und Google versprechen würden, nach sechs Monaten alle Daten zu löschen und das System zur Ermittlung von Kontaktpersonen zu entfernen?
+
+Mild
+app_uptake1 Wenn die Regierung, wie in diesem Szenario dargestellt, eine Tracking-App entwickelt hätte, um die Verbreitung von COVID-19 einzudämmen, würden Sie diese herunterladen und verwenden?
+
+app_uptake2 Wenn die Regierung, wie in diesem Szenario dargestellt, eine Tracking-App entwickelt hätte, um die Verbreitung von COVID-19 einzudämmen, würden Sie diese herunterladen und verwenden?
+
+sunset_app Würde sich Ihre letzte Entscheidung ändern, wenn die Regierung verpflichtet wäre, die Daten zu löschen und die Nachverfolgung nach sechs Monaten einzustellen?
+
+data_local Würde sich Ihre letzte Entscheidung ändern, wenn Daten nur auf Ihrem Smartphone (nicht auf Regierungsservern) gespeichert wären und Sie die Möglichkeit hätten, diese Daten zur Verfügung zu stellen, wenn Sie positiv auf COVID19 getestet würden?
+
+Severe
+is_accceptable1 Ist diese Verwendung von Handydaten zur Standortverfolgung in diesem Szenario akzeptabel?
+
+is_acceptable2 Ist die Verwendung von Handydaten in diesem Szenario akzeptabel?
+
+sunset Würde sich Ihre letzte Entscheidung ändern, wenn die Regierung  verpflichtet wäre, die Daten zu löschen und die Nachverfolgung nach  sechs Monaten einzustellen?
+
+opt_out Würde sich Ihre letzte Entscheidung ändern, wenn es eine Option gäbe, sich aus der Datenerhebung herauszunehmen?
+
+CWA
+
+RKI_download Haben Sie die Corona-Warn-App heruntergeladen?
+RKI_future_download Werden Sie die Corona-Warn-App in der Zukunft herunterladen?
+
+
+
+
+
+Severe
+is_accceptable1 Is the use of cell phone data for location tracking acceptable in this scenario?
+
+is_acceptable2 Is the use of cell phone data acceptable in this scenario?
+
+sunset Would your decision change if the Government was required to delete the data and stop tracking after six months?
+
+opt_out Would your final decision change if there was an option to opt out of data collection?
+
+Mild
+app_uptake1 If, as depicted in this scenario, the Government developed a tracking app to help reduce the spread of COVID-19, would you download and use it? 
+
+app_uptake2 If, as depicted in this scenario, the Government developed a tracking app to help reduce the spread of COVID-19, would you download and use it? 
+
+sunset_app Would your decision change if the government was required to delete the data and cease tracking after six months?
+
+data_local Would your final decision change if data was only stored on your smartphone (not on government servers) and you had the ability to provide this data if you tested positive for COVID-19?
+
+
+Bluetooth
+bluetooth_uptake1_bt If, as depicted in this scenario, Apple and Google added a COVID-19 contact tracing capability into smartphones, would you use it? 
+
+bluetooth_uptake2_bt If, as depicted in this scenario, Apple and Google added a COVID-19 contact tracing capability into smartphones, would you use it? 
+
+change_sunset_bt Would your decision change if Apple and Google promised to delete all data and remove the contact tracing system after six months?
+
+CWA
+
+RKI_download Did you download the Corona-Warn-App?
+RKI_future_download Will you download the Corona-Warn-App in the future?
+
+
+
+
+```{r}
+
+tracking <- data.frame(
+  Scenario = c("Severe", "Severe","Severe", "Mild", "Mild","Mild", "Bluetooth","Bluetooth","Corona-Warn-App","Corona-Warn-App"),
+  Question =c("Is the use of cell phone data for location tracking acceptable in this scenario?",
+              "Would your decision change if the Government was required to delete the data and stop tracking after six months?", 
+              "Would your final decision change if there was an option to opt out of data collection?",
+              "If, as depicted in this scenario, the Government developed a tracking app to help reduce the spread of COVID-19, would you download and use it?",
+              "Would your decision change if the government was required to delete the data and cease tracking after six months?",
+              "Would your final decision change if data was only stored on your smartphone (not on government servers) and you had the ability to provide this data if you tested positive for COVID-19?",
+              "If, as depicted in this scenario, Apple and Google added a COVID-19 contact tracing capability into smartphones, would you use it?",
+              "Would your decision change if Apple and Google promised to delete all data and remove the contact tracing system after six months?",
+              "Did you download the Corona-Warn-App?",
+              "Will you download the Corona-Warn-App in the future?"),
+  Label =c("Acceptability of the scenario", "With follow up: delete data", "With follow up: opt out", "Acceptability of the scenario", "With follow up: delete data", "With follow up: local data","Acceptability of the scenario", "With follow up: delete data", "CWA downloads", "With follow up: future downloads")
+  )
+
+
+
+ table <-tracking %>%
+  kbl() %>%
+  kable_paper("striped", full_width = F, position = "left") 
+ table
+
+ table_tracking <- tracking %>%
+  kbl(format="latex",
+       booktabs = TRUE,
+    caption = "Items querying acceptability of tracking in 3 scenarios and Corona-Warn-App Downloads,  \\label{tab:tracking}",
+    table.envir = "table*") %>% 
+   kable_paper("striped", full_width = F, position = "left")
+
+write_lines( table_tracking , here("output/tracking.tex"))
+
+
+```
+
+
+# General acceptability of various privacy-encroaching measures
+Wie akzeptabel ist es für die Regierung in der Zeit der COVID-19-Pandemie, folgende Maßnahmen zur Begrenzung der Verbreitung des Virus zu ergreifen? 
+
+1. Provide access to the medical records of individuals.
+2. Track the location of people using their cell phone data.
+4. Enable temporary relaxation of data protection regulations.
+5. Collect data about personal contacts and interactions
+6. Enforce people to use an app that notifies when those in quarantine leave the house.
+7. Collect data on the infection and immunity status of citizens.
+
+```{r}
+acc_items <- data.frame(
+  Question =c("Provide access to the medical records of individual.",
+              "Track the location of people using their cell phone data.", 
+              "Enable temporary relaxation of data protection regulations.",
+              "Collect data about personal contacts and interactions.",
+              "Enforce people to use an app that notifies when those in quarantine leave the house.",
+              "Collect data on the infection and immunity status of citizens."),
+  Label =c("Access to medical records","Location tracking data","Suspension of data protection", 
+           "Data on contacts & interactions","Notifications of leaving quarantine","Data on infections & immunity status")
+  )
+
+ table <- acc_items %>%
+  kbl() %>%
+  kable_paper("striped", full_width = F, position = "left") 
+ table
+
+
+table_acc <- acc_items  %>%
+  kbl(format="latex",
+       booktabs = TRUE,
+    caption = "Items querying general acceptability of privacy encroaching measures during the pandemic
+    on a 4-point Likert scale (from 1=Very acceptable to 4 = Not acceptable at all). Q: How acceptable is it for the government to take the following measures to limit the spread of the virus during the time of the COVID 19 pandemic?,  \\label{tab:table_acc}",
+    table.envir = "table*") %>% 
+   kable_paper("striped", full_width = F, position = "left")
+table_acc
+write_lines(table_acc , here("output/table_acc.tex"))
+
+```
+
+
+```{r}
+
+reasonsnot <- data.frame(
+  Question =c("I am concerned about privacy.",
+              "I don't trust the government.", 
+              "I am worried about battery usage on my phone.",
+              "I don't think it's going to be effective.",
+              "I am worried about normalizing government tracking.",
+              "I am concerned about civil liberties.",
+              "I don't own a smart phone.",
+              "My phone is too old to run the app.",
+              "I am concerned about others gaining access to my data."),
+  Label =c('Privacy concerns','Lack of Gov trust','Concerns: Battery usage',
+            'Believe it is non-effective','Concerns: Normalising Gov tracking', 
+            'Concerns: Civil liberties',
+            "Don't own a smartphone", "Phone too old",
+            "Concerns: 3rd party access")
+  )
+
+ table <- reasonsnot %>%
+  kbl() %>%
+  kable_paper("striped", full_width = F, position = "left") 
+ table
+ 
+ 
+ table_reasonsnot <- reasonsnot  %>%
+  kbl(format="latex",
+       booktabs = TRUE,
+    caption = "Items querying reasons not to download the Corona-Warn-App (participants could choose any number of available options). \\label{tab:reasonsnot}",
+    table.envir = "table*") %>% 
+   kable_paper("striped", full_width = F, position = "left")
+table_reasonsnot
+write_lines(table_reasonsnot, here("output/table_reasonsnot.tex"))
+```
+
+Worldviews
+
+```{r}
+
+worldviews <- data.frame(
+  Scale = c("Free market attitudes (Libertarianism)",
+            "Attitudes to science and tech",
+  "Beliefs in conspiracies (wave 3)",
+           "Beliefs in conspiracies (wave 4)"),
+  Question =c("1. An economic system based on free markets unrestrained by government interference automatically works best to meet human needs; 2(reverse). The free market system may be efficient for resource allocation but it is limited in its capacity to promote social justice; 3. The government should interfere with the lives of citizens as little as possible.",
+ "1. Science and technology are making our lives healthier, easier, and more comfortable;
+  2. Because of science and technology, there will be more opportunities for the next generation.",
+ "1. There are secret organizations that have great influence on political decisio;
+  2. Most people do not see how much our lives are determined by plots hatched in secret;
+  3. There are certain political circles with secret agendas that are very influential;
+  4 (control) I think that the various conspiracy theories circulating in the media are absolute nonsense;
+  5. Secret organizations can manipulate people psychologically so that they do not notice how their life is being controlled by others;
+  6. Selfish interests have conspired to convince the public that COVID-19 is a major threat.",
+ "1. The Coronavirus does not really exist, but is a myth created by some influential people or institutions:
+2. The Coronavirus was created in a laboratory and deliberately released to achieve geopolitical or economic goals;
+3. There is a link between 5G and the spread of the Coronavirus;
+4. The severity of the Coronavirus disease is overstated. The actual risk is not higher than that of a seasonal influenza.
+5. The government exaggerates the seriousness of the pandemic in order to divert attention from other problems within Germany.
+6 (control). Wearing masks (mouth and nose protection) protects oneself and others from infection with the Coronavirus.
+7. The Coronavirus was created by pharmaceutical companies to benefit from the need for a vaccine."
+))
+
+ table <- worldviews %>%
+  kbl() %>%
+  kable_paper("striped", full_width = F, position = "left") 
+ table
+ 
+ 
+ table_wv <-  worldviews  %>%
+  kbl(format="latex",
+       booktabs = TRUE,
+    caption = "Items querying worldviews",
+    table.envir = "table*") %>% 
+   kable_paper("striped", full_width = F, position = "left")
+table_wv
+write_lines(table_wv, here("output/table_wv.tex"))
+
+```
+
+Variables for regression models
+
+```{r}
+models <- data.frame(
+  Variable =c("CWA download",
+  "Trust in CWA security", 
+           "Perception of CWA efficiency",
+           "CWA risk of harm perception",
+           "Acceptance of privacy limits",
+           "Social media use & trust",
+           "Governement announcements use & trust",
+           "Covid-19 risk perception",
+           "Approval of German pandemic response",
+           "Find governement guidelenes helpful",
+           "Attitudes to science and tech",
+           "Free market attitudes",
+  "Beliefs in conspiracies (wave 3)",
+           "Beliefs in conspiracies (wave 4)",
+           "Gender (male)",
+           "Education",
+           "Age"),
+  Items =c("Did you download the Corona-Warn-App?",
+  "Combined measure for 3 items:
+  1. How much do you trust the government to use the Corona-Warn-App data only to deal with the COVID-19 pandemic? 
+  2. How much do you trust that the Corona-Warn-App is able to ensure the privacy of each individual that uses it?
+  3. How secure is the data that is collected by the Corona-Warn-App?", 
+           "Combined measure for 3 items: 
+1. How confident are you that the Corona-Warn-App will help you to maintain your normal activities in the future course of the pandemic?  
+2. How confident are you that the Corona-Warn-App will reduce the spread of COVID-19? 
+3. How likely do you think that the Corona-Warn-App will reduce your risk to get in contact with the COVID-19 virus?",
+           "How serious is the risk of harm that could arise from the Corona-Warn-App?",
+           "Combined measure for a question How acceptable is it for the government to take the following measures to limit the spread of the virus during the time of the COVID 19 pandemic? with 6 items:
+ 1.Provide access to the medical records of individual,
+ 2.Track the location of people using their cell phone data, 
+ 3.Enable temporary relaxation of data protection regulations,
+ 4.Collect data about personal contacts and interactions,
+ 5.Enforce people to use an app that notifies when those in quarantine leave the house,
+ 6.Collect data on the infection and immunity status of citizens.",
+           "Combined measure for 2 items about social media: 
+ 1.How often do you rely on the following media to keep you informed about the developments surrounding the COVID-19 pandemic? 2. How do you rate the following sources? Do you think that the information on the COVID 19 pandemic is correct and trustworthy?",
+           "Combined measure for 2 items about Goverenment announcements: 
+  1.How often do you rely on the following media to keep you informed about the developments surrounding the COVID-19 pandemic? 2. How do you rate the following sources? Do you think that the information on the COVID 19 pandemic is correct and trustworthy?",
+           "Combined measure for 4 items:
+1. How severe do you think novel coronavirus (COVID-19) will be for the general population?,
+2. How harmful would it be for your health if you were to become infected COVID-19?, 
+3. How concerned are you that you might become infected with COVID-19?,
+4. How concerned are you that somebody you know might become infected with COVID-19?",
+           "How well overall do you think the Governments in the following countries have handled the COVID-19 pandemic? - Germany",
+           "How helpful are the government guidelines in deciding how to act in relation to the COVID-19 pandemic?",
+           "Combined measure for 2 items: 
+  1. Science and technology are making our lives healthier, easier, and more comfortable
+  2. Because of science and technology, there will be more opportunities for the next generation.",
+           "Combined measure for 2 items: 
+           1. An economic system based on free markets unrestrained by government interference automatically works best to meet human needs.
+2. The government should interfere with the lives of citizens as little as possible.
+3(reverse). The free market system may be
+efficient for resource allocation but it is limited in its capacity to promote social justice.",
+ "Combined measure for 5 items: 
+ 1. There are secret organizations that have great influence on political decisions.
+ 2. Most people do not see how much our lives are determined by plots hatched in secret.
+ 3. There are certain political circles with secret agendas that are very influential.
+ 4 (reverse). I think that the various conspiracy theories circulating in the media are absolute nonsense.
+ 5. Secret organizations can manipulate people psychologically so that they do not notice how their life is being controlled by others.
+ 6. Selfish interests have conspired to convince the public that COVID-19 is a major threat.",
+           "Combined measure for 6 items: 
+           1. The Coronavirus does not really exist, but is a myth created by some influential people or institutions.
+2. The Coronavirus was created in a laboratory and deliberately released to achieve geopolitical or economic goals.
+3. There is a link between 5G and the spread of the Coronavirus. 
+4. The severity of the Coronavirus disease is overstated. The actual risk is not higher than that of a seasonal influenza. 
+5. The government exaggerates the seriousness of the pandemic in order to divert attention from other problems within Germany. 
+6. (reverse) Wearing masks (mouth and nose protection) protects oneself and others from infection with the Coronavirus.
+7. The Coronavirus was created by pharmaceutical companies to benefit from the need for a vaccine.",
+           "What gender do you identify with?",
+           "Please indicate your highest level of education",
+           "How old are you?"),
+    Scale=c("Yes(1), No(0)",
+      "6 point Likert scale, 1 = not at all, 6 = very", 
+           "6 point Likert scale, 1 = not at all, 6 = very",
+           "6 point Likert scale, 1 = not at all, 6 = very",
+           "4 point Likert scale, 1 = not acceptable at all, 4 = very acceptable",
+           "5 point Likert scale, 1 = never/not at all, 5 = always/completely",
+           "5 point Likert scale, 1 = never/not at all, 5 = always/completely",
+           "5 point Likert scale, 1 = not at all, 5 = extremely",
+           "5 point Likert scale, 1 = not at all, 5 = extremely",
+           "5 point Likert scale, 1 = not at all, 5 = extremely",
+           "7 point Likert scale, 1 = strongly disagree, 7 = strongly agree",
+           "7 point Likert scale, 1 = strongly disagree, 7 = strongly agree",
+      "7 point Likert scale, 1 = strongly disagree, 7 = strongly agree",
+           "5 point Likert scale, 1 = undoubtedly false 7 = undoubtedly true",
+           "Male (1), female, other",
+           "None (1), Hauptschule, Realschule, Abitur, University (5)",
+           "Free numeric text entry")
+  )
+ table <- models %>%
+  kbl() %>%
+  kable_paper("striped", full_width = F, position = "left") %>% 
+   column_spec(1, bold = T)
+ table
+ 
+ table_model <- models  %>%
+  kbl(format="latex",
+       booktabs = TRUE,
+    caption = "Variables and items for regression models. \\label{tab:models}",
+    table.envir = "table*") %>% 
+   kable_paper("striped", full_width = F, position = "left")%>% 
+   column_spec(1, bold = T)
+
+write_lines(table_model, here("output/table_models.tex"))
+```
+
+
+
+
+Tables for efficacy and security of apps
+
+```{r}
+efficacy <- data.frame(
+  Question =c("How confident are you that the Government app would reduce your likelihood of contracting COVID-19?",
+"How confident are you that the Government app would help you resume your normal activities more rapidly?",
+"How confident are you that the Government app would reduce the spread of COVID-19?",
+"How confident are you that other citizens like yourself would be able to download and effectively use the app?",
+"Has the Corona-Warn-App already helped you to resume your normal activities?",
+              "How confident are you that the Corona-Warn-App will help you to maintain your normal activities in the future course of the pandemic?", 
+              "To what extent do you think the Corona-Warn-App has already reduced the spread of COVID-19?",
+              "How confident are you that the Corona-Warn-App will reduce the spread of COVID-19?",
+              "How likely do you think that the Corona-Warn-App will reduce your risk to get in contact with the COVID-19 virus?",
+              "How sure are you that other citizens like yourself are able to download and effectively use the Corona-Warn-App?"),
+  Label =c("Reduce Likelihood to Contract", "Return Activity", "Reduce Spread", "Others Ability to Download the App","Reduce Likelihood to Contract", "Return to Activity Past",  "Return to Activity Future", "Reduce Spread Past", "Reduce Spread Future",  "Others Ability to Download the App")
+  )
+
+table <- efficacy %>%
+  kbl() %>%
+  kable_paper("striped", full_width = F, position = "left") %>%
+ pack_rows("Waves 1 and 2", 1,4)%>% 
+  pack_rows("Waves 3 and 4", 5,10)
+table
+
+table_efficacy <- efficacy  %>%
+  kbl(format="latex",
+       booktabs = TRUE,
+    caption = "Items querying efficacy of tracking apps in different scenarios (waves 1 and 2) and in case of Corona-Warn-App (waves 3 and 4) \\label{tab:efficacy}",
+    table.envir = "table*") %>% 
+   kable_paper("striped", full_width = F, position = "left")%>% 
+   pack_rows("Waves 1 and 2", 1,4)%>% 
+  pack_rows("Waves 3 and 4", 5,10)
+
+write_lines(table_efficacy, here("output/table_efficacy.tex"))
+
+
+```
+
+```{r}
+security <- data.frame(
+  Question =c("How easy is it for people to decline participation in the proposed project?",
+"To what extent is the Government only collecting the data necessary?",
+"How sensitive is the data being collected in the proposed project?",
+"How serious is the risk of harm that could arise from the proposed project?",
+"How much do you trust the Government to use the tracking data only to deal with the COVID-19 pandemic?",
+              "How much do you trust the Government to be able to ensure the privacy of each individual?", 
+              "How secure is the data that would be collected for the proposed project?",
+              "To what extent do people have ongoing control of their data?",
+
+ "How easy is it for people to decline participation in Corona-Warn-App contact tracing?",
+"To what extent is the Corona-Warn-App only collecting the data necessary to achieve its purposes?",
+"How sensitive is the data being collected by the Corona-Warn-App?",
+"How serious is the risk of harm that could arise from the Corona-Warn-App?",
+"How much do you trust the government to use the Corona-Warn-App data only to deal with the COVID-19 pandemic?",
+              "How much do you trust that the Corona-Warn-App is able to ensure the privacy of each individual that uses it?",               "How secure is the data that is collected by the Corona-Warn-App?",
+              "To what extent do people have ongoing control of their data when using the Corona-Warn-App?"             
+),
+  Label =c('Ease to Decline Participation','Trust:Only Necessary Data','How Sensitive are Data','Risk of Harm', 'Trust:Data for Pandemic Only', 'Trust:Privacy Protection', 'Trust:Security from 3rd P.', 'User Control over Data', 'Ease to Decline Participation','Trust:Only Necessary Data','How Sensitive are Data','Risk of Harm', 'Trust:Data for Pandemic Only', 'Trust:Privacy Protection', 'Trust:Security from 3rd P.','User Control over Data')
+  )
+
+table <- security %>%
+  kbl() %>%
+  kable_paper("striped", full_width = F, position = "left") %>%
+ pack_rows("Waves 1 and 2", 1,8)%>% 
+  pack_rows("Waves 3 and 4", 9,16)
+table
+
+table_security <- security  %>%
+  kbl(format="latex",
+       booktabs = TRUE,
+    caption = "Items querying security of tracking apps in different scenarios (waves 1 and 2) and in case of Corona-Warn-App (waves 3 and 4) \\label{tab:security}",
+    table.envir = "table*") %>% 
+   kable_paper("striped", full_width = F, position = "left")%>% 
+  pack_rows("Waves 1 and 2", 1,8)%>% 
+  pack_rows("Waves 3 and 4", 9,16)
+
+write_lines(table_security, here("output/table_security.tex"))
+
+
+```
+
+Wave1&2
+
+1. How easy is it for people to decline participation in the proposed project?
+2. To what extent is the Government only collecting the data necessary?
+3. How sensitive is the data being collected in the proposed project?
+4. How serious is the risk of harm that could arise from the proposed project?
+5. How much do you trust the Government to use the tracking data only to deal with the COVID-19 pandemic?
+6. How much do you trust the Government to be able to ensure the privacy of each individual?
+7. How secure is the data that would be collected for the proposed project?
+8. To what extent do people have ongoing control of their data?
+
+Wave3&4
+  1. How easy is it for people to decline participation in Corona-Warn-App contact tracing?
+  2. To what extent is the Corona-Warn-App only collecting the data necessary to achieve its purposes?
+  3. How sensitive is the data being collected by the Corona-Warn-App?
+  4. How serious is the risk of harm that could arise from the Corona-Warn-App?
+  5. How much do you trust the government to use the Corona-Warn-App data only to deal with the COVID-19 pandemic?
+  6. How much do you trust that the Corona-Warn-App is able to ensure the privacy of each individual that uses it?
+  7. How secure is the data that is collected by the Corona-Warn-App?
+  8. To what extent do people have ongoing control of their data when using the Corona-Warn-App?

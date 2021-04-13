@@ -1,0 +1,2584 @@
+
+```{r setup, include=FALSE}
+
+if(!require("pacman")) install.packages("pacman"); library(pacman)
+p_load("tidyverse", "here", "readr", "lattice", "hexbin", "stargazer", "lme4", 
+          "gridExtra", "stringr", "Hmisc","psych", "scales", "workflowr",
+          "readxl", "vioplot", "expss", "jtools", "broom", "kableExtra", "knitr",
+          "sjlabelled", "naniar", "summarytools", "GGally", "correlation", "dplyr", "janitor", "ggplot2", 'rio','survey', 'parsedate','sjPlot', 'sjmisc', "scales","reshape2", "skimr", "kableExtra","testthat", "patchwork", "tidyr", "utils", "tidybayes", "ggalt", "gghighlight", "ggridges", "ggpubr", "wesanderson", "viridis", "RColorBrewer", "ggstatsplot")
+
+source(here('code/functions.R'))
+
+
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+
+
+```
+
+
+
+```{r load and filter data, include=FALSE, echo=FALSE}
+dat_path_1 <-
+  here("data/tracking_survey_w1_public.csv")
+data_1 <- read.csv(dat_path_1) %>%
+  filter(consent == 5) %>%
+  filter(Finished == 1) %>%
+  filter(age > 17) %>%
+  filter(attention_check == 1) %>%
+  rename (id = X,
+          reduce_lik_mild = participant_benefit) %>%
+  mutate(wave = "wave1")
+
+dim(data_1)
+
+dat_path_2 <-
+  here("data/tracking_survey_w2_public.csv")
+data_2 <- read.csv(dat_path_2) %>%
+  filter(consent == 5) %>%
+  filter(Finished == 1) %>%
+  filter(age > 17) %>%
+  filter(attention_check == 1 | att_check_bt == 1) %>%
+  rename (id = X) %>%
+  mutate(wave = "wave2")
+
+dim(data_2)
+
+dat_path_3 <-
+  here("data/tracking_survey_w3_public.csv")
+data_3 <- read.csv(dat_path_3) %>%
+  filter(consent == 5) %>%
+  filter(Finished == 1) %>%
+  filter(age > 17) %>%
+  filter(attention_check == 1) %>%
+  rename (id = X) %>%
+  mutate(wave = "wave3")
+
+dim(data_3)
+
+dat_path_4 <-
+  here("data/tracking_survey_w4_public.csv")
+data_4 <- read.csv(dat_path_4) %>%
+  filter(consent == 5) %>%
+  filter(Finished == 1) %>%
+  filter(age > 17) %>%
+  filter(attention_check == 1) %>%
+  rename (id = X) %>%
+  mutate(wave = "wave4")
+
+dim(data_4)
+
+```
+
+```{r}
+
+apps <- data.frame(
+  Country =c("Germany", "UK", "Switzerland", "Finland", "France", "Italy", "Spain", "Singapore", "Australia", "India"),
+  Downloads =c(32, 31, 35, 45, 19, 17, 15, 82, 28, 13)
+  )
+
+
+fig_apps <- apps  %>%
+  ggplot(aes(x = reorder(Country, Downloads), y = Downloads)) +
+  geom_col(fill = 'cornflowerblue', alpha = 0.6) +
+  labs(title = "COVID-19 contact tracing apps: Downloads", x = "", y = "% Downloads") +
+  geom_text(
+    aes(x = Country, y = Downloads,
+        label = Downloads),
+    size = 3,
+    hjust = 1.3,
+    colour = "black",
+    alpha = 0.8,
+    fontface = "bold",
+    position = position_dodge(1),
+    inherit.aes = TRUE
+  ) +
+  ylim(0, 100) +
+  theme_nice() +
+  theme(legend.position = "bottom") +
+  coord_flip()
+fig_apps
+
+ggsave(
+  filename = here("output/covid_apps.pdf"),
+  plot = fig_apps,
+  dpi = 300,
+  units = 'cm',
+  height = 10,
+  width = 15
+)
+
+```
+
+```{r, fig.width = 10, fig.height= 5, fig.cap='Figure 1. Survey Waves mapped onto German COVID-19 Cases statistics', echo = FALSE, warnings=FALSE}
+
+
+
+NOW = as.Date('2020-12-14')
+START = as.Date( '2020-02-20' )
+STARTavg = START - 6
+Germany = WorldCOVIDdata('Germany',
+                         StartDate = STARTavg, EndDate = NOW) %>%
+  select(cases, deaths, date, country) %>%
+  drop_na()%>%
+  melt(id = c('date','country'))
+# Create a rolling average for cases in Germany...
+#   Allocate a new data column
+Germany$avg = NA
+#   Collect data for Day ii & the previous six days,
+#     before storing their mean in the avg column
+for (ii in 7:nrow(Germany)){
+  Germany$avg[ii] = mean(Germany$value[(ii - 6):ii], na.rm = T)
+}
+#   Remove the initial 6 days of data that we no longer 
+#     want to include
+Germany = Germany[!is.na(Germany$avg),]
+# Allocated Data to dataframes for Key dates, Waves, and German Cases & Deaths.
+Dates = data.frame( date = as.Date( c('2020-03-23','2020-05-04','2020-06-16', "2020-11-02"),
+                                    '%Y-%m-%d'),
+                    text = c('Start of first lockdown (country-wide "contact ban")',
+                             'Ease of restrictions',
+                             'Germany launches Corona-Warn-App',
+                             'Start of second lockdown ("light")'))
+Waves = data.frame( start = as.Date( c("2020-03-30", "2020-04-17", "2020-08-25", "2020-11-02")),
+                    end   = as.Date( c("2020-03-31", "2020-04-22", "2020-09-03", "2020-11-08")),
+                    text  = c('Wave 1','Wave 2','Wave 3', 'Wave 4'))
+ft = 3.2
+p  = 15
+c  = 'sienna1'
+
+# Plot Cases & Deaths
+Plot = ggplot(Germany) +
+  geom_col(aes(date, avg, group = variable, fill = variable), width = .8) +
+  scale_fill_manual(values = alpha(c('dodgerblue','red'), c(.4,1)),
+                    labels = c('Cases','Deaths')) +
+  scale_y_continuous( expand = c(0, 1), limits = c(0,max(Germany$avg)*1.2) ) +
+  scale_x_date(expand = c(0.0, 0), labels = date_format("%d-%b"), date_breaks = "10 days",
+               limits = c(START,  NOW+5)) +
+  theme_nice()+
+  theme( legend.direction = 'vertical',
+         legend.position = c(.05,.9),
+         axis.text.x = element_text(angle=45, hjust = 1)) +
+  labs(title = 'COVID-19 cases & deaths in Germany', y = '', x = 'Date', size = 14)
+# Add Data collectiond dates.
+for (d in 1:nrow(Waves)){
+  Plot = Plot +
+    annotate("rect", xmin = Waves$start[d], xmax = Waves$end[d], ymin = 0, ymax = Inf, fill = 'green',  alpha = .25) +
+    annotate("text", x = Waves$start[d], y = Inf, label = Waves$text[d], angle=90, color = 'darkgreen', size=4, vjust=-.4, hjust='right', fontface = "bold")
+}
+# Add key dates
+for (d in 1:nrow(Dates)){
+  Plot = Plot +
+    # annotate("rect", xmin = Dates$start[d], xmax = Dates$end[d], ymin = 0, ymax = Inf, fill = 'yellow',  alpha = .25) +
+    annotate("text", x = Dates$date[d], y = p+10, label = Dates$text[d], angle=90, color = 'black', size=ft, vjust=0+.25, hjust='left', fontface = "bold")
+  # geom_segment(x = Dates$date[d], y = 2+Germany$value[(Germany$date == Dates$date[d] & Germany$variable == 'deaths')], yend = p, xend = Dates$date[d], color = 'gray10', size = 1, alpha = 0.5 )
+}
+Plot
+
+ggsave(filename = here("output/covid_cases.pdf"), plot = Plot, dpi = 300, units = 'cm', height = 13, width = 30)
+
+```
+
+
+```{r table demographics, include=TRUE}
+
+
+
+D <- rbind(data_1 %>% select(id, gender, age, education, residence) %>% mutate (wave = "w1") %>% mutate(smartphoneuse ="na"), data_2 %>% select(id, gender, age, education, residence, smartphoneuse, mobileuse_sev)%>% mutate (wave="w2") %>% unite("smartphoneuse", smartphoneuse:mobileuse_sev, na.rm = TRUE, remove = TRUE),
+               data_3 %>% select(id, gender, age, education, residence, smartphoneuse)%>% mutate (wave="w3"),
+           data_4 %>% select(id, gender, age, education, residence, smartphoneuse)%>% mutate (wave="w4")) 
+         
+
+D_n <- D %>%
+group_by(wave) %>%
+   summarise(n = n(), .groups = "keep") %>%
+  mutate(Col="N")%>%
+  pivot_wider(names_from = "wave",
+                values_from = "n")
+
+
+
+D_sm <- D %>% 
+  group_by(wave, smartphoneuse) %>% 
+  summarise (n = n(), .groups = "keep") %>% 
+  ungroup() %>% 
+  group_by(wave) %>%
+  mutate(N=sum(n)) %>% 
+  mutate (perc=round((n / N) * 100)) %>% 
+  mutate(Col = factor(
+    smartphoneuse,
+    levels = c(0, 1),
+    labels = c("No", "Yes")
+  )) %>%
+  ungroup()%>%
+  select(-smartphoneuse, -n, -N)%>%
+  pivot_wider(names_from = "wave",
+                values_from = "perc") %>% 
+  filter (w3>0)
+D_sm
+
+
+D_g <- D %>%
+group_by(wave, gender) %>%
+   summarise(n = n(), .groups = "keep")%>%
+  ungroup() %>% 
+  group_by(wave) %>%
+  mutate(N=sum(n)) %>% 
+  mutate (perc=round((n / N) * 100)) %>% 
+  mutate(Col = factor(
+    gender,
+    levels = c(1, 2, 3),
+    labels = c("Male", "Female", "Other")
+  )) %>%
+  ungroup()%>%
+  select(-gender, -n, -N)%>%
+  pivot_wider(names_from = "wave",
+                values_from = "perc")
+D_g
+
+D_e <- D %>%
+group_by(wave, education) %>%
+   summarise(n = n(), .groups = "keep")%>%
+  ungroup() %>% 
+  group_by(wave) %>%
+  mutate(N=sum(n)) %>% 
+  mutate (perc=round((n / N) * 100)) %>% 
+  mutate(Col = factor(
+    education,
+    levels = c(1, 2, 3, 5, 4),
+    labels = c("Hauptschule", "Realschule", "Abitur", "University", "None")
+  )) %>%
+  ungroup()%>%
+  select(-education, -n, -N)%>%
+  pivot_wider(names_from = "wave",
+                values_from = "perc") %>%
+  arrange(desc(w1))
+D_e
+
+D_a_m <- D %>%
+group_by(wave) %>%
+   summarise(age_mdn = median(age),
+             )%>%
+  mutate(Col="Age_Median") %>%
+  pivot_wider(names_from = "wave",
+                values_from = "age_mdn")
+
+
+D_a_sd <- D %>%
+group_by(wave) %>%
+       summarise(age_sd = round(sd(age)),
+             )%>%
+  mutate(Col="Age_SD") %>%
+  pivot_wider(names_from = "wave",
+                values_from = "age_sd")
+
+
+D_r <- D %>%
+group_by(wave, residence) %>%
+   summarise(n = n(), .groups = "keep")%>%
+  ungroup() %>% 
+  group_by(wave) %>%
+  mutate(N=sum(n)) %>% 
+  mutate (perc=round((n / N) * 100)) %>% 
+  mutate(Col = factor(
+    residence,
+    levels = c(1, 2, 3, 4, 5, 6, 7),
+    labels = c("Bremen, Hamburg, Niedersachsen, Schleswig-Holstein", "Nordrhein-Westfalen", "Hessen, Rheinland-Pfalz, Saarland", "Baden-Württemberg", "Bayern", "Berlin, Brandenburg, Mecklenburg-Vorpommern, Sachsen-Anhalt",  "Sachsen, Thüringen")
+  )) %>%
+  ungroup()%>%
+  select(-residence, -n, -N)%>%
+  pivot_wider(names_from = "wave",
+                values_from = "perc")
+D_r 
+
+tbl <- rbind(D_n, D_sm, D_g, D_a_m, D_a_sd, D_e, D_r)
+
+table_tbl <- tbl %>%
+  kbl(col.names = c("","Wave 1", "Wave 2","Wave 3", "Wave4")) %>%
+  kable_paper("striped", full_width = F, position = "left") %>%
+ pack_rows("Sample size", 1,2, label_row_css = "background-color: #666; color: #fff;")%>%
+  pack_rows("Smartphone use", 2,3, label_row_css = "background-color: #666; color: #fff;")%>%
+pack_rows("Gender", 4,7, label_row_css = "background-color: #666; color: #fff;") %>%
+  pack_rows("Age", 7,8, label_row_css = "background-color: #666; color: #fff;")%>%
+ pack_rows("Education", 9,13, label_row_css = "background-color: #666; color: #fff;")%>%
+ pack_rows("Residence", 14,20, label_row_css = "background-color: #666; color: #fff;")
+
+
+
+table_tbl2 <- tbl %>%
+  kbl(booktabs = TRUE,
+    caption = "Demographic information \\label{tbl:demographics}",
+    table.envir = "table*",
+    col.names = c("","Wave 1", "Wave 2","Wave 3", "Wave4"),
+    align = c("l", "r", "r", "r"),
+    format = "latex"
+) %>%
+  kable_paper("striped", full_width = F, position = "left") %>%
+  pack_rows("Sample size", 1,2, label_row_css = "background-color: #666; color: #fff;")%>%
+  pack_rows("Smartphone use (%)", 2,3, label_row_css = "background-color: #666; color: #fff;")%>%
+pack_rows("Gender (%)", 4,7, label_row_css = "background-color: #666; color: #fff;") %>%
+  pack_rows("Age", 7,8, label_row_css = "background-color: #666; color: #fff;")%>%
+ pack_rows("Education (%)", 9,13, label_row_css = "background-color: #666; color: #fff;")
+
+
+
+
+write_lines(table_tbl2, here("output/tbl_demographics.tex"))
+
+
+```
+
+```{r, risk perception, fig.width = 18, fig.height= 9}
+
+risk_1 <-
+  data_1 %>% select(id,
+                    COVID_sev_general,
+                    COVID_pers_harm,
+                    COVID_pers_concern,
+                    COVID_concern4others) %>% mutate (wave = "w1") %>%
+  drop_na() %>%
+  pivot_longer(
+    names_to = "Perceived_risk",
+    values_to = "Rating",
+    cols = COVID_sev_general:COVID_concern4others
+  ) %>%
+  mutate(Rating = factor(
+    Rating,
+    levels = c(1, 2, 3, 4, 5),
+    labels = c("Not at all", "Slightly", "Somewhat", "Very", "Extremely")
+  )) %>%
+  mutate(Perceived_risk = factor(
+    Perceived_risk,
+    levels = c(
+      "COVID_sev_general",
+      "COVID_pers_harm",
+      "COVID_pers_concern",
+      "COVID_concern4others"
+    ),
+    labels = c(
+      "Severity for German population",
+      "Harm to your health if infected",
+      "Concern I will be infected",
+      "Concern someone I know will be infected"
+    )
+  )) %>%
+  group_by(Perceived_risk, Rating, .drop = FALSE) %>%
+  summarise(n = n(), .groups = "keep") %>%
+  group_by(Perceived_risk) %>%
+  mutate(prop = n / sum(n),
+         perc = fnc_perc(prop)) %>%
+  select(-n,-prop) %>% 
+  mutate(wave = "Wave 1")
+
+risk_2 <-
+  data_2 %>% select(id,
+                    COVID_sev_general,
+                    COVID_pers_harm,
+                    COVID_pers_concern,
+                    COVID_concern4others) %>% mutate (wave = "w2") %>%
+  drop_na() %>%
+  pivot_longer(
+    names_to = "Perceived_risk",
+    values_to = "Rating",
+    cols = COVID_sev_general:COVID_concern4others
+  ) %>%
+  mutate(Rating = factor(
+    Rating,
+    levels = c(1, 2, 3, 4, 5),
+    labels = c("Not at all", "Slightly", "Somewhat", "Very", "Extremely")
+  )) %>%
+  mutate(Perceived_risk = factor(
+    Perceived_risk,
+    levels = c(
+      "COVID_sev_general",
+      "COVID_pers_harm",
+      "COVID_pers_concern",
+      "COVID_concern4others"
+    ),
+    labels = c(
+      "Severity for German population",
+      "Harm to your health if infected",
+      "Concern I will be infected",
+      "Concern someone I know will be infected"
+    )
+  )) %>%
+  group_by(Perceived_risk, Rating, .drop = FALSE) %>%
+  summarise(n = n(), .groups = "keep") %>%
+  group_by(Perceived_risk) %>%
+  mutate(prop = n / sum(n),
+         perc = fnc_perc(prop)) %>%
+  select(-n,-prop)%>% 
+  mutate(wave = "Wave 2")
+
+
+risk_3 <-
+  data_3 %>% select(id,
+                    COVID_sev_general,
+                    COVID_pers_harm,
+                    COVID_pers_concern,
+                    COVID_concern4others) %>% mutate (wave = "w3") %>%
+  drop_na() %>%
+  pivot_longer(
+    names_to = "Perceived_risk",
+    values_to = "Rating",
+    cols = COVID_sev_general:COVID_concern4others
+  ) %>%
+  mutate(Rating = factor(
+    Rating,
+    levels = c(1, 2, 3, 4, 5),
+    labels = c("Not at all", "Slightly", "Somewhat", "Very", "Extremely")
+  )) %>%
+  mutate(Perceived_risk = factor(
+    Perceived_risk,
+    levels = c(
+      "COVID_sev_general",
+      "COVID_pers_harm",
+      "COVID_pers_concern",
+      "COVID_concern4others"
+    ),
+    labels = c(
+      "Severity for German population",
+      "Harm to your health if infected",
+      "Concern I will be infected",
+      "Concern someone I know will be infected"
+    )
+  )) %>%
+  group_by(Perceived_risk, Rating, .drop = FALSE) %>%
+  summarise(n = n(), .groups = "keep") %>%
+  group_by(Perceived_risk) %>%
+  mutate(prop = n / sum(n),
+         perc = fnc_perc(prop)) %>%
+  select(-n,-prop)%>% 
+  mutate(wave = "Wave 3")
+
+
+risk_4 <-
+  data_4 %>% select(id,
+                    COVID_sev_general,
+                    COVID_pers_harm,
+                    COVID_pers_concern,
+                    COVID_concern4others) %>% mutate (wave = "w4") %>%
+  drop_na() %>%
+  pivot_longer(
+    names_to = "Perceived_risk",
+    values_to = "Rating",
+    cols = COVID_sev_general:COVID_concern4others
+  ) %>%
+  mutate(Rating = factor(
+    Rating,
+    levels = c(1, 2, 3, 4, 5),
+    labels = c("Not at all", "Slightly", "Somewhat", "Very", "Extremely")
+  )) %>%
+  mutate(Perceived_risk = factor(
+    Perceived_risk,
+    levels = c(
+      "COVID_sev_general",
+      "COVID_pers_harm",
+      "COVID_pers_concern",
+      "COVID_concern4others"
+    ),
+    labels = c(
+      "Severity for German population",
+      "Harm to your health if infected",
+      "Concern I will be infected",
+      "Concern someone I know will be infected"
+    )
+  )) %>%
+  group_by(Perceived_risk, Rating, .drop = FALSE) %>%
+  summarise(n = n(), .groups = "keep") %>%
+  group_by(Perceived_risk) %>%
+  mutate(prop = n / sum(n),
+         perc = fnc_perc(prop)) %>%
+  select(-n,-prop)%>% 
+  mutate(wave = "Wave 4")
+
+
+
+risk <- rbind(risk_1, risk_2, risk_3, risk_4) 
+
+
+fig_risk <- risk %>%
+  ggplot(aes(x = Rating, y = perc, fill = wave)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("tomato", "orange", "steelblue", "#4cbc7c")) +
+  labs(title = "COVID-19 risk perception", x = "", y = "% of respondents") +
+  geom_text(
+    aes(x = Rating, y = perc,
+        label = perc),
+    size = 3.5,
+    vjust = -0.2,
+    colour = "black",
+    alpha = 0.8,
+    fontface = "bold",
+    position = position_dodge(1),
+    inherit.aes = TRUE
+  ) +
+  ylim(0, 60) +
+  facet_wrap( ~ Perceived_risk, scales = 'free_x', labeller = label_value) +
+  theme_nice() +
+  theme(legend.position = "bottom", legend.title = element_blank())
+fig_risk
+
+ggsave(
+  filename = here("output/fig_risk.pdf"),
+  plot = fig_risk,
+  dpi = 300,
+  units = 'cm',
+  height = 16,
+  width = 28
+)
+
+```
+```{r, risk perception within subjects}
+
+selfothers_1 <-
+  data_1 %>% select(id,
+                    COVID_pers_concern,
+                    COVID_concern4others) %>%
+  drop_na() %>%
+  mutate(
+    comparison = ifelse(
+      COVID_pers_concern == COVID_concern4others,
+      0,
+      COVID_concern4others - COVID_pers_concern
+    )
+  ) %>%
+  mutate(comparison = factor(
+    comparison,
+    levels = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
+    labels = c(
+      "More concern for self",
+      "More concern for self",
+      "More concern for self",
+      "More concern for self",
+      "Equal concern",
+      "More concern for others",
+      "More concern for others",
+      "More concern for others",
+      "More concern for others"
+    )
+  )) %>%
+  select(-COVID_pers_concern, COVID_concern4others) %>%
+  group_by(comparison) %>%
+  summarise(n = n(), .groups = "keep") %>%
+  ungroup() %>%
+  mutate(perc = fnc_perc(n / sum(n))) %>%
+  mutate(wave = "Wave 1")
+
+
+
+selfothers_2 <-
+  data_2 %>% select(id,
+                    COVID_pers_concern,
+                    COVID_concern4others) %>%
+  drop_na() %>%
+  mutate(
+    comparison = ifelse(
+      COVID_pers_concern == COVID_concern4others,
+      0,
+      COVID_concern4others - COVID_pers_concern
+    )
+  ) %>%
+  mutate(comparison = factor(
+    comparison,
+    levels = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
+    labels = c(
+      "More concern for self",
+      "More concern for self",
+      "More concern for self",
+      "More concern for self",
+      "Equal concern",
+      "More concern for others",
+      "More concern for others",
+      "More concern for others",
+      "More concern for others"
+    )
+  )) %>%
+  select(-COVID_pers_concern, COVID_concern4others) %>%
+  group_by(comparison) %>%
+  summarise(n = n(), .groups = "keep") %>%
+  ungroup() %>%
+  mutate(perc = fnc_perc(n / sum(n))) %>%
+  mutate(wave = "Wave 2")
+
+
+selfothers_3 <-
+  data_3 %>% select(id,
+                    COVID_pers_concern,
+                    COVID_concern4others) %>%
+  drop_na() %>%
+  mutate(
+    comparison = ifelse(
+      COVID_pers_concern == COVID_concern4others,
+      0,
+      COVID_concern4others - COVID_pers_concern
+    )
+  ) %>%
+  mutate(comparison = factor(
+    comparison,
+    levels = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
+    labels = c(
+      "More concern for self",
+      "More concern for self",
+      "More concern for self",
+      "More concern for self",
+      "Equal concern",
+      "More concern for others",
+      "More concern for others",
+      "More concern for others",
+      "More concern for others"
+    )
+  )) %>%
+  select(-COVID_pers_concern, COVID_concern4others) %>%
+  group_by(comparison) %>%
+  summarise(n = n(), .groups = "keep") %>%
+  ungroup() %>%
+  mutate(perc = fnc_perc(n / sum(n))) %>%
+  mutate(wave = "Wave 3")
+
+
+selfothers_4 <-
+  data_4 %>% select(id,
+                    COVID_pers_concern,
+                    COVID_concern4others) %>%
+  drop_na() %>%
+  mutate(
+    comparison = ifelse(
+      COVID_pers_concern == COVID_concern4others,
+      0,
+      COVID_concern4others - COVID_pers_concern
+    )
+  ) %>%
+  mutate(comparison = factor(
+    comparison,
+    levels = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
+    labels = c(
+      "More concern for self",
+      "More concern for self",
+      "More concern for self",
+      "More concern for self",
+      "Equal concern",
+      "More concern for others",
+      "More concern for others",
+      "More concern for others",
+      "More concern for others"
+    )
+  )) %>%
+  select(-COVID_pers_concern, COVID_concern4others) %>%
+  group_by(comparison) %>%
+  summarise(n = n(), .groups = "keep") %>%
+  ungroup() %>%
+  mutate(perc = fnc_perc(n / sum(n))) %>%
+  mutate(wave = "Wave 4")
+
+selfothers <-
+  rbind(selfothers_1, selfothers_2, selfothers_3, selfothers_4)
+
+
+
+
+
+fig_selfothers <- selfothers %>%
+  ggplot(aes(x = comparison, y = perc, fill = wave)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("tomato", "orange", "steelblue", "#4cbc7c")) +
+  labs(
+    title = "Concern for self vs. others",
+    x = "",
+    y = "% of respondents"
+  ) +
+  geom_text(
+    aes(x = comparison, y = perc,
+        label = perc),
+    size = 3.5,
+    vjust = -0.2,
+    colour = "black",
+    alpha = 0.8,
+    fontface = "bold",
+    position = position_dodge(1),
+    inherit.aes = TRUE
+  ) +
+  ylim(0, 100) +
+  theme_nice() +
+  theme(legend.position = "bottom", legend.title = element_blank())
+fig_selfothers
+
+ggsave(
+  filename = here("output/fig_selfothers.pdf"),
+  plot = fig_selfothers,
+  dpi = 300,
+  units = 'cm',
+  height = 9,
+  width = 15
+)
+
+```
+
+```{r, acceptability tracking, fig.width = 15, fig.height= 8}
+
+#preparing all scenarios by wave
+
+acc_track1_severe <-
+  data_1 %>% select(
+    id,
+    is_acceptable2,
+    sunset,
+    opt_out,
+    app_uptake2,
+    sunset_app,
+    data_local,
+    scenario_type
+  ) %>%
+  rename(
+    acceptability_severe2 = is_acceptable2,
+    sunset_severe = sunset,
+    opt_out_severe = opt_out
+  ) %>%
+  pivot_longer(
+    names_to = "acceptability_scenario",
+    values_to = "rating",
+    cols = acceptability_severe2:opt_out_severe
+  ) %>%
+  filter(scenario_type == "severe") %>%
+  mutate(acceptability = factor(
+    rating,
+    levels = c(1, 0),
+    labels = c("yes", "no")
+  )) %>%
+  group_by(acceptability_scenario, acceptability, scenario_type, .drop = FALSE) %>%
+  summarise(n = n(), .groups = "keep") %>%
+  group_by(acceptability_scenario) %>%
+  mutate(N = sum(n)) %>%
+  filter(acceptability == "yes") %>%
+  drop_na() %>%
+  mutate(wave = "Wave 1")
+
+
+
+acc_track1_mild <-
+  data_1 %>% select(id, app_uptake2,  sunset_app, data_local, scenario_type) %>%
+  rename(
+    acceptability_mild2 = app_uptake2,
+    sunset_mild = sunset_app,
+    data_local_mild = data_local
+  ) %>%
+  pivot_longer(
+    names_to = "acceptability_scenario",
+    values_to = "rating",
+    cols = acceptability_mild2:data_local_mild
+  ) %>%
+  filter(scenario_type == "mild") %>%
+  mutate(acceptability = factor(
+    rating,
+    levels = c(1, 0),
+    labels = c("yes", "no")
+  )) %>%
+  group_by(acceptability_scenario, acceptability, scenario_type, .drop = FALSE) %>%
+  summarise(n = n(), .groups = "keep") %>%
+  group_by(acceptability_scenario) %>%
+  mutate(N = sum(n)) %>%
+  filter(acceptability == "yes") %>%
+  drop_na() %>%
+  mutate(wave = "Wave 1")
+
+
+
+acc_track2_bt <-
+  data_2 %>% select(id, bluetooth_uptake2_bt, change_sunset_bt, scenario_type) %>%
+  rename(acceptability_bt2 = bluetooth_uptake2_bt,
+         sunset_bt = change_sunset_bt) %>%
+  pivot_longer(names_to = "acceptability_scenario",
+               values_to = "rating",
+               cols = acceptability_bt2:sunset_bt) %>%
+  filter(scenario_type == "bluetooth") %>%
+  mutate(acceptability = factor(
+    rating,
+    levels = c(1, 0),
+    labels = c("yes", "no")
+  )) %>%
+  group_by(acceptability_scenario, acceptability, scenario_type, .drop = FALSE) %>%
+  summarise(n = n(), .groups = "keep") %>%
+  group_by(acceptability_scenario) %>%
+  mutate(N = sum(n)) %>%
+  filter(acceptability == "yes") %>%
+  drop_na() %>%
+  mutate(wave = "Wave 2")
+
+
+
+acc_track2_severe <-
+  data_2 %>% select(id, is_acceptable2, sunset, opt_out, scenario_type) %>%
+  rename(
+    acceptability_severe2 = is_acceptable2,
+    sunset_severe = sunset,
+    opt_out_severe = opt_out
+  ) %>%
+  pivot_longer(
+    names_to = "acceptability_scenario",
+    values_to = "rating",
+    cols = acceptability_severe2:opt_out_severe
+  ) %>%
+  filter(scenario_type == "severe") %>%
+  mutate(acceptability = factor(
+    rating,
+    levels = c(1, 0),
+    labels = c("yes", "no")
+  )) %>%
+  group_by(acceptability_scenario, acceptability, scenario_type, .drop = FALSE) %>%
+  summarise(n = n(), .groups = "keep") %>%
+  group_by(acceptability_scenario) %>%
+  mutate(N = sum(n)) %>%
+  filter(acceptability == "yes") %>%
+  drop_na() %>%
+  mutate(wave = "Wave 2")
+
+
+acc_track2_mild <-
+  data_2 %>% select(id, app_uptake2,  sunset_app, data_local, scenario_type) %>%
+  rename(
+    acceptability_mild2 = app_uptake2,
+    sunset_mild = sunset_app,
+    data_local_mild = data_local
+  ) %>%
+  pivot_longer(
+    names_to = "acceptability_scenario",
+    values_to = "rating",
+    cols = acceptability_mild2:data_local_mild
+  ) %>%
+  filter(scenario_type == "mild") %>%
+  mutate(acceptability = factor(
+    rating,
+    levels = c(1, 0),
+    labels = c("yes", "no")
+  )) %>%
+  group_by(acceptability_scenario, acceptability, scenario_type, .drop = FALSE) %>%
+  summarise(n = n(), .groups = "keep") %>%
+  group_by(acceptability_scenario) %>%
+  mutate(N = sum(n)) %>%
+  filter(acceptability == "yes") %>%
+  drop_na() %>%
+  mutate(wave = "Wave 2")
+
+
+acc_track3 <-
+  data_3 %>% select(id, RKI_download, RKI_future_download) %>%
+  mutate (scenario_type = "CoronaApp") %>%
+  pivot_longer(
+    names_to = "acceptability_scenario",
+    values_to = "rating",
+    cols = RKI_download:RKI_future_download
+  ) %>%
+  mutate(acceptability = factor(
+    rating,
+    levels = c(1, 0, 2),
+    labels = c("yes", "no", "no")
+  )) %>%
+  group_by(acceptability_scenario, acceptability, scenario_type, .drop = FALSE) %>%
+  summarise(n = n(), .groups = "keep") %>%
+  group_by(acceptability_scenario) %>%
+  mutate(N = sum(n)) %>%
+  filter(acceptability == "yes") %>%
+  drop_na() %>%
+  mutate(wave = "Wave 3")
+
+
+acc_track4 <-
+  data_4 %>% select(id, RKI_download, RKI_future_download) %>%
+  mutate (scenario_type = "CoronaApp") %>%
+  pivot_longer(
+    names_to = "acceptability_scenario",
+    values_to = "rating",
+    cols = RKI_download:RKI_future_download
+  ) %>%
+  mutate(acceptability = factor(
+    rating,
+    levels = c(1, 0, 2),
+    labels = c("yes", "no", "no")
+  )) %>%
+  group_by(acceptability_scenario, acceptability, scenario_type, .drop = FALSE) %>%
+  summarise(n = n(), .groups = "keep") %>%
+  group_by(acceptability_scenario) %>%
+  mutate(N = sum(n)) %>%
+  filter(acceptability == "yes") %>%
+  drop_na() %>%
+  mutate(wave = "Wave 4")
+
+
+# combining all scenarios/waves in one table
+acc_track <-
+  rbind(
+    acc_track1_severe,
+    acc_track2_severe,
+    acc_track1_mild,
+    acc_track2_mild,
+    acc_track2_bt,
+    acc_track3,
+    acc_track4
+  )
+
+
+# adding up numbers for follow-up conditions
+
+acc_track_comb <- acc_track %>%
+  pivot_wider(names_from = "acceptability_scenario", values_from = "n") %>%
+  mutate(acc_with_sunset_severe = acceptability_severe2 + sunset_severe) %>%
+  mutate(acc_with_optout_severe = acceptability_severe2 + opt_out_severe) %>%
+  mutate(acc_with_sunset_mild = acceptability_mild2 + sunset_mild) %>%
+  mutate(acc_with_local_mild = acceptability_mild2 + data_local_mild) %>%
+  mutate(Acc_bt_combined = acceptability_bt2 + sunset_bt) %>%
+  mutate(RKI_download_combined = RKI_download + RKI_future_download) %>%
+  select(
+    -sunset_severe,
+    -opt_out_severe,
+    -sunset_mild,
+    -data_local_mild,
+    -sunset_bt,
+    -RKI_future_download
+  ) %>%
+  pivot_longer(
+    names_to = "acceptability_scenario",
+    values_to = "n",
+    cols = acceptability_severe2:RKI_download_combined
+  ) %>%
+  drop_na() %>%
+  ungroup()
+
+
+# add percentages and labels
+acc_track_new <- acc_track_comb %>%
+  mutate(perc = round((n / N) * 100)) %>%
+  ungroup() %>%
+  mutate(scenario_type = factor(
+    scenario_type,
+    levels = c("severe", "mild", "bluetooth", "CoronaApp"),
+    labels = c("Severe", "Mild", "Bluetooth", "Corona-Warn-App")
+  )) %>%
+  mutate(acceptability_scenario = factor(
+    acceptability_scenario,
+    levels = c(
+      "acceptability_severe2",
+      "acc_with_sunset_severe",
+      "acc_with_optout_severe",
+      "acceptability_mild2",
+      "acc_with_sunset_mild",
+      "acc_with_local_mild",
+      "acceptability_bt2",
+      "Acc_bt_combined",
+      "RKI_download",
+      "RKI_download_combined"
+    ),
+    labels = c(
+      "Acceptability\nof the scenario",
+      "With follow up:\ndelete data",
+      "With follow up:\nopt out",
+      "Acceptability\nof the scenario",
+      "With follow up:\ndelete data",
+      "With follow up:\nlocal data",
+      "Acceptability\nof the scenario",
+      "With follow up:\ndelete data",
+      "Downloads",
+      "With follow up:\nfuture downloads"
+    )
+  ))
+
+
+acc_track_prop <- acc_track_new %>%
+  select(n, N)
+
+
+# prop test
+
+pt <- acc_track_prop %>%
+  set_names(c("x", "n")) %>%
+  mutate(result = pmap(., prop.test)) %>%
+  mutate(result = map(result, tidy))
+
+
+pt <- pt %>%
+  mutate(result = map(result, ~ select(.x, p.value, conf.low, conf.high))) %>%
+  unnest(cols = c(result))  %>%
+  select(conf.low, conf.high)
+
+
+#adding confidence intervals to the dataframe
+
+acc_track_final <- cbind(acc_track_new, pt)
+
+
+# plot with error bars
+
+fig_acc_track <- acc_track_final %>%
+  ggplot(aes(x = acceptability_scenario, y = perc, fill = wave)) +
+  geom_bar(
+    position = "dodge",
+    stat = "identity",
+    width = c(
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.5,
+      0.5,
+      0.9,
+      0.9,
+      0.9,
+      0.9
+    )
+  ) +
+  scale_fill_manual(values = c("tomato", "orange", "steelblue", "#4cbc7c")) +
+  geom_errorbar(
+    aes(ymin = conf.low * 100, ymax = conf.high * 100),
+    width = .2,
+    position = position_dodge(0.9)
+  ) +
+  labs(title = "Acceptability of Tracking in Three Scenarios and Corona-Warn-App Downloads", x =
+         "", y = "% of respondents") +
+  geom_text(
+    aes(
+      x = acceptability_scenario,
+      y = perc,
+      fill = wave,
+      label = perc
+    ),
+    size = 3.5,
+    vjust = 3.5,
+    colour = "black",
+    alpha = 0.8,
+    fontface = "bold",
+    position = position_dodge(0.9),
+    inherit.aes = TRUE
+  ) +
+  ylim(0, 100) +
+  facet_grid( ~ scenario_type,
+              scale = "free",
+              space = "free",
+              shrink = TRUE) +
+  theme_nice() +
+  theme(legend.position = "bottom", legend.title = element_blank())
+fig_acc_track
+
+ggsave(
+  filename = here("output/fig_acc_scenarios.pdf"),
+  plot = fig_acc_track,
+  dpi = 300,
+  units = 'cm',
+  height = 12,
+  width = 30
+)
+```
+
+
+
+
+```{r, figure acceptability general, fig.width = 15, fig.height= 8}
+
+# prep acceptability measures by wave, selecting only very and somewhat acceptable
+
+acc_general_w1 <-
+  data_1 %>% dplyr::select(starts_with("acc_general")) %>%
+  rename(
+    Medical_records = acc_general_1,
+    Location_tracking = acc_general_2,
+    Data_protection_suspension = acc_general_3,
+    Contacts_and_interactions = acc_general_4,
+    Notification_quarantine = acc_general_5,
+    Infections_and_immunity_status = acc_general_6
+  ) %>%
+  drop_na () %>%
+  pivot_longer (
+    names_to = "measures",
+    values_to = "acceptability_level",
+    cols = Medical_records:Infections_and_immunity_status
+  ) %>%
+  mutate(rating = factor(
+    acceptability_level,
+    levels = c(1, 2, 3, 4),
+    labels = c(
+      "Very_acceptable",
+      "Somewhat_acceptable",
+      "Not acceptable at all",
+      "Not very acceptable"
+    )
+  )) %>%
+  group_by(measures, rating, .drop = FALSE) %>%
+  summarise(n_w1 = n(), .groups = "keep") %>%
+  group_by(measures) %>%
+  mutate(N = sum(n_w1)) %>%
+  mutate(wave = "Wave 1") %>%
+  filter (rating == "Very_acceptable" |
+            rating == "Somewhat_acceptable") %>%
+  pivot_wider(names_from = "rating", values_from = "n_w1") %>%
+  mutate(n = Somewhat_acceptable + Very_acceptable) %>%
+  select(-Somewhat_acceptable,-Very_acceptable)
+
+
+
+
+acc_general_w2 <-
+  data_2 %>% dplyr::select(starts_with("acc_general")) %>%
+  rename(
+    Medical_records = acc_general_1,
+    Location_tracking = acc_general_2,
+    Data_protection_suspension = acc_general_3,
+    Contacts_and_interactions = acc_general_4,
+    Notification_quarantine = acc_general_5,
+    Infections_and_immunity_status = acc_general_6
+  ) %>%
+  drop_na () %>%
+  pivot_longer (
+    names_to = "measures",
+    values_to = "acceptability_level",
+    cols = Medical_records:Infections_and_immunity_status
+  ) %>%
+  mutate(rating = factor(
+    acceptability_level,
+    levels = c(1, 2, 3, 4),
+    labels = c(
+      "Very_acceptable",
+      "Somewhat_acceptable",
+      "Not acceptable at all",
+      "Not very acceptable"
+    )
+  )) %>%
+  group_by(measures, rating, .drop = FALSE) %>%
+  summarise(n_w2 = n(), .groups = "keep") %>%
+  group_by(measures) %>%
+  mutate(N = sum(n_w2)) %>%
+  mutate(wave = "Wave 2") %>%
+  filter (rating == "Very_acceptable" |
+            rating == "Somewhat_acceptable") %>%
+  pivot_wider(names_from = "rating", values_from = "n_w2") %>%
+  mutate(n = Somewhat_acceptable + Very_acceptable) %>%
+  select(-Somewhat_acceptable,-Very_acceptable)
+
+
+
+
+acc_general_w3 <-
+  data_3 %>% dplyr::select(starts_with("acc_general")) %>%
+  rename(
+    Medical_records = acc_general_1,
+    Location_tracking = acc_general_2,
+    Data_protection_suspension = acc_general_3,
+    Contacts_and_interactions = acc_general_4,
+    Notification_quarantine = acc_general_5,
+    Infections_and_immunity_status = acc_general_6
+  ) %>%
+  drop_na () %>%
+  pivot_longer (
+    names_to = "measures",
+    values_to = "acceptability_level",
+    cols = Medical_records:Infections_and_immunity_status
+  ) %>%
+  mutate(rating = factor(
+    acceptability_level,
+    levels = c(1, 2, 3, 4),
+    labels = c(
+      "Very_acceptable",
+      "Somewhat_acceptable",
+      "Not acceptable at all",
+      "Not very acceptable"
+    )
+  )) %>%
+  group_by(measures, rating, .drop = FALSE) %>%
+  summarise(n_w3 = n(), .groups = "keep") %>%
+  group_by(measures) %>%
+  mutate(N = sum(n_w3)) %>%
+  mutate(wave = "Wave 3") %>%
+  filter (rating == "Very_acceptable" |
+            rating == "Somewhat_acceptable") %>%
+  pivot_wider(names_from = "rating", values_from = "n_w3") %>%
+  mutate(n = Somewhat_acceptable + Very_acceptable) %>%
+  select(-Somewhat_acceptable,-Very_acceptable)
+
+
+acc_general_w4 <-
+  data_4 %>% dplyr::select(starts_with("acc_general")) %>%
+  rename(
+    Medical_records = acc_general_1,
+    Location_tracking = acc_general_2,
+    Data_protection_suspension = acc_general_3,
+    Contacts_and_interactions = acc_general_4,
+    Notification_quarantine = acc_general_5,
+    Infections_and_immunity_status = acc_general_6
+  ) %>%
+  drop_na () %>%
+  pivot_longer (
+    names_to = "measures",
+    values_to = "acceptability_level",
+    cols = Medical_records:Infections_and_immunity_status
+  ) %>%
+  mutate(rating = factor(
+    acceptability_level,
+    levels = c(1, 2, 3, 4),
+    labels = c(
+      "Very_acceptable",
+      "Somewhat_acceptable",
+      "Not acceptable at all",
+      "Not very acceptable"
+    )
+  )) %>%
+  group_by(measures, rating, .drop = FALSE) %>%
+  summarise(n_w4 = n(), .groups = "keep") %>%
+  group_by(measures) %>%
+  mutate(N = sum(n_w4)) %>%
+  mutate(wave = "Wave 4") %>%
+  filter (rating == "Very_acceptable" |
+            rating == "Somewhat_acceptable") %>%
+  pivot_wider(names_from = "rating", values_from = "n_w4") %>%
+  mutate(n = Somewhat_acceptable + Very_acceptable) %>%
+  select(-Somewhat_acceptable,-Very_acceptable)
+
+
+#combine waves, add labels and percentages
+
+
+acc_general <-
+  rbind(acc_general_w1,
+        acc_general_w2,
+        acc_general_w3,
+        acc_general_w4) %>%
+  mutate(perc = round((n / N) * 100)) %>%
+  ungroup() %>%
+  mutate(measures = factor (
+    measures,
+    levels = c(
+      "Infections_and_immunity_status",
+      "Medical_records",
+      "Location_tracking",
+      "Notification_quarantine",
+      "Data_protection_suspension",
+      "Contacts_and_interactions"
+    ),
+    labels = c(
+      "Data on infections &\nimmunity status",
+      "Access to\nmedical records",
+      "Location\ntracking data",
+      "Notifications of\nleaving quarantine",
+      "Suspension of\ndata protection",
+      "Data on contacts\n& interactions"
+    )
+  ))
+
+acc_general_prop <- acc_general %>%
+  select(n, N)
+
+
+# prop test
+
+pt <- acc_general_prop %>%
+  set_names(c("x", "n")) %>%
+  mutate(result = pmap(., prop.test)) %>%
+  mutate(result = map(result, tidy))
+
+
+pt <- pt %>%
+  mutate(result = map(result, ~ select(.x, p.value, conf.low, conf.high))) %>%
+  unnest(cols = c(result))  %>%
+  select(conf.low, conf.high)
+
+
+#adding confidence intervals to the dataframe
+
+acc_general_final <- cbind(acc_general, pt)
+
+
+# plot
+
+fig_acc_gen <- acc_general_final %>%
+  ggplot(aes(x = measures, y = perc, fill = wave)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("tomato", "orange", "steelblue", "#4cbc7c")) +
+  labs(
+    title = "General acceptability of six privacy-encroaching measures",
+    x = "",
+    y = "Acceptability (% of respondents)"
+  ) +
+  geom_errorbar(
+    aes(ymin = conf.low * 100, ymax = conf.high * 100),
+    width = .2,
+    position = position_dodge(0.9)
+  ) +
+  geom_text(
+    aes(x = measures, y = perc,
+        label = perc),
+    size = 3.5,
+    vjust = 3,
+    colour = "black",
+    alpha = 0.8,
+    fontface = "bold",
+    position = position_dodge(0.9),
+    inherit.aes = TRUE
+  ) +
+  
+  ylim(0, 100) +
+  theme_nice() +
+  theme(legend.position = "bottom", legend.title = element_blank())
+fig_acc_gen
+
+
+ggsave(
+  filename = here("output/fig_acc_gen.pdf"),
+  plot = fig_acc_gen,
+  dpi = 300,
+  units = 'cm',
+  height = 13,
+  width = 28
+)
+
+```
+
+
+```{r, acceptability + risk perceptions within participants, fig.width = 15, fig.height= 10}
+
+acceptability <-
+  data_4 %>% dplyr::select(starts_with('acc_general_'))
+Acceptability <-
+  revscore(acceptability, 4) %>% center_scale()
+
+COVIDrisk <-
+  data_4 %>% dplyr::select(c(
+    COVID_sev_general,
+    COVID_pers_harm,
+    COVID_pers_concern,
+    COVID_concern4others
+  )) %>% apply(., 1, mean, na.rm = TRUE) %>% center_scale()
+
+ar_4 <- as.data.frame(cbind(Acceptability, COVIDrisk)) %>%
+  rename(
+    Medical_records = acc_general_1,
+    Location_tracking = acc_general_2,
+    Data_protection_suspension = acc_general_3,
+    Contacts_and_interactions = acc_general_4,
+    Notification_quarantine = acc_general_5,
+    Infections_and_immunity_status = acc_general_6
+  ) %>%
+  drop_na() %>%
+  pivot_longer(
+    names_to = "Acceptability",
+    values_to = "Rating_acc",
+    cols = Medical_records:Infections_and_immunity_status
+  ) %>%
+  rename("COVIDrisk" = V7) %>%
+  mutate(wave = "Wave 4")
+
+acceptability <-
+  data_3 %>% dplyr::select(starts_with('acc_general_'))
+Acceptability <-
+  revscore(acceptability, 4) %>% center_scale()
+
+COVIDrisk <-
+  data_3 %>% dplyr::select(c(
+    COVID_sev_general,
+    COVID_pers_harm,
+    COVID_pers_concern,
+    COVID_concern4others
+  )) %>% apply(., 1, mean, na.rm = TRUE) %>% center_scale()
+
+ar_3 <- as.data.frame(cbind(Acceptability, COVIDrisk)) %>%
+  rename(
+    Medical_records = acc_general_1,
+    Location_tracking = acc_general_2,
+    Data_protection_suspension = acc_general_3,
+    Contacts_and_interactions = acc_general_4,
+    Notification_quarantine = acc_general_5,
+    Infections_and_immunity_status = acc_general_6
+  ) %>%
+  drop_na() %>%
+  pivot_longer(
+    names_to = "Acceptability",
+    values_to = "Rating_acc",
+    cols = Medical_records:Infections_and_immunity_status
+  ) %>%
+  rename("COVIDrisk" = V7) %>%
+  mutate(wave = "Wave 3")
+
+acceptability <-
+  data_2 %>% dplyr::select(starts_with('acc_general_'))
+Acceptability <-
+  revscore(acceptability, 4) %>% center_scale()
+
+COVIDrisk <-
+  data_2 %>% dplyr::select(c(
+    COVID_sev_general,
+    COVID_pers_harm,
+    COVID_pers_concern,
+    COVID_concern4others
+  )) %>% apply(., 1, mean, na.rm = TRUE) %>% center_scale()
+
+ar_2 <- as.data.frame(cbind(Acceptability, COVIDrisk)) %>%
+  rename(
+    Medical_records = acc_general_1,
+    Location_tracking = acc_general_2,
+    Data_protection_suspension = acc_general_3,
+    Contacts_and_interactions = acc_general_4,
+    Notification_quarantine = acc_general_5,
+    Infections_and_immunity_status = acc_general_6
+  ) %>%
+  drop_na() %>%
+  pivot_longer(
+    names_to = "Acceptability",
+    values_to = "Rating_acc",
+    cols = Medical_records:Infections_and_immunity_status
+  ) %>%
+  rename("COVIDrisk" = V7) %>%
+  mutate(wave = "Wave 2")
+
+acceptability <-
+  data_1 %>% dplyr::select(starts_with('acc_general_'))
+Acceptability <-
+  revscore(acceptability, 4) %>% center_scale()
+
+COVIDrisk <-
+  data_1 %>% dplyr::select(c(
+    COVID_sev_general,
+    COVID_pers_harm,
+    COVID_pers_concern,
+    COVID_concern4others
+  )) %>% apply(., 1, mean, na.rm = TRUE) %>% center_scale()
+
+ar_1 <- as.data.frame(cbind(Acceptability, COVIDrisk)) %>%
+  rename(
+    Medical_records = acc_general_1,
+    Location_tracking = acc_general_2,
+    Data_protection_suspension = acc_general_3,
+    Contacts_and_interactions = acc_general_4,
+    Notification_quarantine = acc_general_5,
+    Infections_and_immunity_status = acc_general_6
+  ) %>%
+  drop_na() %>%
+  pivot_longer(
+    names_to = "Acceptability",
+    values_to = "Rating_acc",
+    cols = Medical_records:Infections_and_immunity_status
+  ) %>%
+  rename("COVIDrisk" = V7) %>%
+  mutate(wave = "Wave 1")
+
+ar <- rbind(ar_1, ar_2, ar_3, ar_4) %>%
+  mutate(Acceptability = factor (
+    Acceptability,
+    levels = c(
+      "Infections_and_immunity_status",
+      "Medical_records",
+      "Location_tracking",
+      "Notification_quarantine",
+      "Data_protection_suspension",
+      "Contacts_and_interactions"
+    ),
+    labels = c(
+      "Data on infections &\nimmunity status",
+      "Access to\nmedical records",
+      "Location\ntracking data",
+      "Notifications of\nleaving quarantine",
+      "Suspension of\ndata protection",
+      "Data on contacts\n& interactions"
+    )
+  ))
+
+
+plot <- ggscatter(
+  ar,
+  x = "COVIDrisk",
+  y = "Rating_acc",
+  color = "wave",
+  fill = "wave",
+  size = 0.7,
+  shape = 21,
+  position = position_jitter(),
+  alpha = .02,
+  add = "reg.line",
+  conf.int = TRUE,
+  palette = c("tomato", "orange", "steelblue", "#4cbc7c")
+) +
+  stat_cor(aes(color = wave),
+           p.accuracy = 0.0001,
+           p.digits = 3)+
+           labs(title = "Acceptability of measures and COVID-19 risk perception") +
+  scale_x_continuous("Risk perception") +
+  scale_y_continuous("Privacy-encroachement acceptance level") +
+  facet_wrap( ~  Acceptability,
+              ncol = 2,
+              scales = 'free_x',
+              labeller = label_value) +
+    theme_nice() +
+  theme(legend.position = "bottom", legend.title = element_blank())
+plot
+
+
+
+ggsave(
+  filename = here("output/fig_acc_risk.pdf"),
+  plot = plot,
+  dpi = 300,
+  units = 'cm',
+  height = 28,
+  width = 20
+)
+```
+
+
+
+```{r, risk and efficacy figure, fig.width = 15, fig.height= 20, include=FALSE}
+
+D1 <-
+  data_1 %>% select(reduce_lik_mild:ability_mild,
+                    decline_participate:ongoing_control,
+                    scenario_type) %>%
+  pivot_longer(
+    names_to = "variable",
+    values_to = "value",
+    cols = reduce_lik_mild:ongoing_control
+  ) %>%
+  mutate(wave = "Wave 1")
+
+
+D2 <-
+  data_2 %>% select(reduce_lik_bt:ability_bt,
+                    decline_participate:ongoing_control,
+                    scenario_type) %>%
+  pivot_longer(
+    names_to = "variable",
+    values_to = "value",
+    cols = reduce_lik_bt:ongoing_control
+  ) %>%
+  mutate(wave = "Wave 2")
+
+
+D3 <-
+  data_3 %>% select(reduce_lik_bt:ability_bt, decline_part_bt:ongoing_control) %>%
+  rename(reduce_lik_cwa = reduce_lik_bt,
+         ability_cwa = ability_bt) %>%
+  pivot_longer(
+    names_to = "variable",
+    values_to = "value",
+    cols = reduce_lik_cwa:ongoing_control
+  ) %>%
+  mutate(wave = "Wave 3") %>%
+  mutate(scenario_type = "Corona-Warn-App")
+
+
+D4 <-
+  data_4 %>% select(reduce_lik_bt:ability_bt, decline_part_bt:ongoing_control) %>%
+  rename(reduce_lik_cwa = reduce_lik_bt,
+         ability_cwa = ability_bt) %>%
+  pivot_longer(
+    names_to = "variable",
+    values_to = "value",
+    cols = reduce_lik_cwa:ongoing_control
+  ) %>%
+  mutate(wave = "Wave 4") %>%
+  mutate(scenario_type = "Corona-Warn-App")
+
+
+D <- rbind(D1, D2, D3, D4) %>%
+  drop_na() %>%
+  mutate(rating = factor(
+    value,
+    levels = c(1, 2, 3, 4, 5, 6),
+    labels = c(
+      "Not_at_all",
+      "Hardly",
+      "A_little",
+      "Moderately",
+      "Quite_a_lot",
+      "Very_much"
+    )
+  )) %>%
+  mutate(scenario_type = factor(
+    scenario_type,
+    levels = c("severe", "mild", "bluetooth", "Corona-Warn-App"),
+    labels = c("Severe", "Mild", "Bluetooth", "Corona-Warn-App")
+  )) %>%
+  mutate(variable = factor(
+    variable,
+    levels = c(
+      "ability_mild",
+      "reduce_lik_mild",
+      "reduce_spread_mild",
+      "return_activ_mild",
+      "reduce_lik_sev",
+      "reduce_spread_severe",
+      "return_activ_sev",
+      "ability_bt",
+      "reduce_lik_bt",
+      "reduce_spread_bt",
+      "return_activ_bt",
+      "ability_cwa",
+      "reduce_lik_cwa",
+      "reduce_spread_past",
+      "reduce_spread_fut",
+      "return_activ_past",
+      "return_activ_fut",
+      "decline_participate",
+      "proportionality",
+      "sensitivity",
+      "risk_of_harm",
+      "trust_intentions",
+      "trust_respectprivacy",
+      "data_security",
+      "decline_part_bt",
+      "proportionality_bt",
+      "sensitivity_bt",
+      "risk_of_harm_bt",
+      "trust_intentions_bt",
+      "trust_respectpriv_bt",
+      "data_security_bt",
+      "ongoing_control"
+    ),
+    labels = c(
+      "Others Ability\nto Download\nthe App",
+      "Reduce\nLikelihood\nto Contract",
+      "Reduce\nSpread",
+      "Return to\nActivity",
+      "Reduce\nLikelihood\nto Contract",
+      "Reduce\nSpread",
+      "Return to\nActivity",
+      "Others' Ability\nto Download\nthe App",
+      "Reduce\nLikelihood\nto Contract",
+      "Reduce\nSpread",
+      "Return to\nActivity",
+      "Others' Ability\nto Download\nthe App",
+      "Reduce\nLikelihood\nto Contract",
+      "Reduce\nSpread\nPast",
+      "Reduce\nSpread\nFuture",
+      "Return to\nActivity\nPast",
+      "Return to\nActivity\nFuture",
+      'Ease of\nDeclining\nParticipation',
+      'Trust: Only\nNecessary\nData',
+      'How Sensitive\nAre Data',
+      'Risk\nof Harm',
+      'Trust: Data\nfor Pandemic\nOnly',
+      'Trust: Privacy\nProtection',
+      'Trust: Security\nfrom 3rd Party',
+      'Ease of\nDeclining\nParticipation',
+      'Trust: Only\nNecessary\nData',
+      'How Sensitive\nAre Data',
+      'Risk\nof Harm',
+      'Trust: Data\nfor Pandemic\nOnly',
+      'Trust: Privacy\nProtection',
+      'Trust: Security\nfrom 3rd Party',
+      'User Control\nOver Data'
+    )
+  ))
+
+D_sum <- D %>% 
+  group_by(rating, value, scenario_type, variable, wave) %>% 
+  summarise(n = n()) %>% 
+  ungroup
+D_sum
+
+app_risk_eff_plot <-
+  ggplot(D, aes(x = variable, y = value), trim = FALSE) +
+  geom_boxplot(varwidth = TRUE, outlier.shape = NA,  aes(fill = wave)) +
+  scale_fill_manual(name = "Wave",
+                    values = c("tomato", "orange", "steelblue", "#4cbc7c")) +
+  geom_jitter(
+    color = "steelblue",
+    size = 0.2,
+    alpha = 0.15,
+    inherit.aes = TRUE
+  ) +
+   scale_y_continuous(
+    breaks = 1:6,
+    labels = c(
+      "Not at all",
+      "Hardly",
+      "A little",
+      "Moderately",
+      "Quite a lot",
+      "Very much"
+    )
+  ) +
+  labs(title = 'Perception of risk and effectiveness in each scenario and in case of the Corona-Warn-App',
+       x = '',
+       y = expression('Level of Confidence')) +
+    facet_wrap( ~ scenario_type,
+              ncol = 1,
+              scales = 'free_x',
+              labeller = label_value) +
+  theme_nice() +
+  theme(legend.position = "bottom", legend.title=element_blank(), axis.text.x = element_text(angle = 0))
+app_risk_eff_plot
+
+
+
+ggsave(
+  filename = here("output/app_risk_eff_plot.pdf"),
+  plot = app_risk_eff_plot,
+  dpi = 300,
+  units = 'cm',
+  height = 37,
+  width = 33
+)
+
+
+```
+
+
+
+
+## Reasons (not) to download
+
+
+```{r,Reasons for not downloading the Corona-Warn-App, fig.width = 8, fig.height= 5}
+
+# prepare reasons not from wave 3
+
+rki_reasons_not3 <-
+  data_3 %>% dplyr::select(RKI_reasons_not_down) %>%
+  mutate(reasons = str_split(string = RKI_reasons_not_down,
+                             pattern = ",")) %>%
+  unnest(reasons) %>%
+  drop_na() %>%
+  filter(reasons > 0) %>%
+  mutate(id = row_number()) %>%
+  select(-RKI_reasons_not_down)
+
+
+
+rki_reasons_not3 <- rki_reasons_not3 %>%
+  group_by(reasons) %>%
+  summarise(n_w3 = n(), .groups = "keep") %>%
+  mutate(reasons = factor(
+    reasons,
+    levels = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
+    labels = c(
+      'Concerns: Privacy',
+      'Lack of trust in government',
+      'Concerns: Battery usage',
+      'Belief it is not effective',
+      'Concerns: Normalizing government tracking',
+      'Concerns: Civil liberties',
+      "Don't own a smartphone",
+      "Phone too old",
+      "Concerns: 3rd party access"
+    )
+  )) %>%
+  mutate(N = length(unique(rki_reasons_not3$id))) %>%
+   mutate (perc = round((n_w3 / N) * 100)) %>%
+  ungroup() %>%
+    mutate(sum_perc = sum(perc)) %>% 
+  add_row(reasons = "Belief virus is not dangerous", perc = 0) %>%
+  add_row(reasons = "Other reasons", perc = 0) %>%
+  arrange(desc(perc)) %>%
+  select(-N,-sum_perc,-n_w3) %>%
+  mutate(wave = "Wave 3")
+
+
+# prepare reasons not from wave 4
+
+rki_reasons_not4 <-
+  data_4 %>% dplyr::select(RKI_reasons_not_down) %>%
+  mutate(reasons = str_split(string = RKI_reasons_not_down,
+                             pattern = ",")) %>%
+  unnest(reasons) %>%
+  drop_na() %>%
+  filter(reasons > 0) %>%
+  mutate(id = row_number()) %>%
+  select(-RKI_reasons_not_down)
+
+rki_reasons_not4 <- rki_reasons_not4 %>%
+  group_by(reasons) %>%
+  summarise(n_w4 = n(), .groups = "keep") %>%
+  mutate(N = length(unique(rki_reasons_not4$id))) %>%
+  mutate (perc = round((n_w4 / N) * 100)) %>%
+  ungroup()  %>%
+  mutate(sum_perc = sum(perc)) %>%
+  mutate(reasons = factor(
+    reasons,
+    levels = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11),
+    labels = c(
+      'Concerns: Privacy',
+      'Lack of trust in government',
+      'Concerns: Battery usage',
+      'Belief it is not effective',
+      'Concerns: Normalizing government tracking',
+      'Concerns: Civil liberties',
+      "Don't own a smartphone",
+      "Phone too old",
+      "Concerns: 3rd party access",
+      "Belief virus is not dangerous",
+      "Other reasons"
+    )
+  )) %>%
+  arrange(desc(perc)) %>%
+  select(-N,-sum_perc,-n_w4) %>%
+  mutate(wave = "Wave 4")
+
+
+# combine reasons from two waves
+
+rki_reasons_not <- rbind (rki_reasons_not3, rki_reasons_not4) %>%
+  arrange(desc(perc)) %>%
+  filter (perc > 0)
+
+# plot
+
+fig_reasons_not <- rki_reasons_not %>%
+  ggplot(aes(
+    x = reorder(reasons, perc),
+    y = perc,
+    fill = wave
+  )) +
+  geom_col(
+    position = "dodge",
+    width = c(
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.5,
+      0.5,
+      0.9,
+      0.9,
+      0.9,
+      0.9
+    )
+  ) +
+  scale_fill_manual(values = c("steelblue", "#4cbc7c")) +
+  geom_text(
+    aes(x = reasons, y = perc,
+        label = perc),
+    size = 3,
+    hjust = 1.1,
+    colour = "black",
+    alpha = 0.8,
+    fontface = "bold",
+    position = position_dodge(1),
+    inherit.aes = TRUE,
+    check_overlap = TRUE,
+    na.rm = FALSE
+  ) +
+  ylim(0, 50) +
+  theme_nice() +
+  theme(legend.position = "bottom", legend.title = element_blank()) +
+  labs(title = "Reasons not to download Corona-Warn-App", y = "% of respondents", x =
+         "") +
+  coord_flip()
+fig_reasons_not
+
+
+
+```
+
+
+```{r,Reasons for downloading the Corona-Warn-App, fig.width = 8, fig.height= 5}
+
+# prepare reasons from wave 3
+
+rki_reasons3 <- data_3 %>% dplyr::select(RKI_reasons) %>%
+  mutate(reasons = str_split(string = RKI_reasons,
+                             pattern = ",")) %>%
+  unnest(reasons) %>%
+  drop_na() %>%
+  filter(reasons > 0) %>%
+  mutate(id = row_number()) %>%
+  select(-RKI_reasons)
+
+
+
+rki_reasons3 <- rki_reasons3 %>%
+  group_by(reasons) %>%
+  summarise(n_w3 = n(), .groups = "keep") %>%
+  mutate(reasons = factor(
+    reasons,
+    levels = c(1, 2, 3, 4, 5),
+    labels = c(
+      "To return to normal activities",
+      "To protect my health",
+      "To protect the health of others",
+      "To follow government recommendations",
+      "To help the economy"
+    )
+  )) %>%
+  mutate(N = length(unique(rki_reasons3$id))) %>%
+  mutate (perc = round((n_w3 / N) * 100)) %>%
+  ungroup()  %>%
+  mutate(sum_perc = sum(perc)) %>%
+  add_row(reasons = "Other reasons", perc = 0) %>%
+  select(-N, -sum_perc, -n_w3) %>%
+  mutate(wave = "Wave 3")
+
+
+# prepare reasons from wave 4
+
+rki_reasons4 <- data_4 %>% dplyr::select(RKI_reasons) %>%
+  mutate(reasons = str_split(string = RKI_reasons,
+                             pattern = ",")) %>%
+  unnest(reasons) %>%
+  drop_na() %>%
+  filter(reasons > 0) %>%
+  mutate(id = row_number()) %>%
+  select(-RKI_reasons)
+
+
+rki_reasons4 <- rki_reasons4 %>%
+  group_by(reasons) %>%
+  summarise(n_w4 = n(), .groups = "keep") %>%
+  mutate(reasons = factor(
+    reasons,
+    levels = c(1, 2, 3, 4, 5, 6),
+    labels = c(
+      "To return to normal activities",
+      "To protect my health",
+      "To protect the health of others",
+      "To follow government recommendations",
+      "To help the economy",
+      "Other reasons"
+    )
+  )) %>%
+  mutate(N = length(unique(rki_reasons4$id))) %>%
+  mutate (perc = round((n_w4 / N) * 100)) %>%
+  ungroup()  %>%
+  mutate(sum_perc = sum(perc)) %>%
+  select(-N, -sum_perc, -n_w4) %>%
+  mutate(wave = "Wave 4")
+
+#combine reasons from 2 waves
+
+rki_reasons <- rbind (rki_reasons3, rki_reasons4) %>%
+  arrange(desc(perc)) %>%
+  filter (perc > 0)
+
+#plot
+
+fig_reasons <- rki_reasons %>%
+  ggplot(aes(
+    x = reorder(reasons, perc),
+    y = perc,
+    fill = wave
+  )) +
+  geom_col(position = "dodge",
+           width = c(
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.5
+    )) +
+  scale_fill_manual(values = c("steelblue", "#4cbc7c")) +
+  geom_text(
+    aes(x = reasons, y = perc,
+        label = perc),
+    size = 3,
+    hjust = 1.1,
+    colour = "black",
+    alpha = 0.8,
+    fontface = "bold",
+    position = position_dodge(1),
+    inherit.aes = TRUE
+  ) +
+  ylim(0, 50) +
+  theme_nice() +
+  theme(legend.position = "bottom", legend.title = element_blank()) +
+  labs(title = "Reasons to download Corona-Warn-App", y = "% of respondents", x =
+         "") +
+  coord_flip()
+fig_reasons
+
+```
+
+```{r, figure reasons, fig.width = 14, fig.height= 5}
+#combine plots
+fig_cwa_reasons <- fig_reasons + fig_reasons_not
+fig_cwa_reasons
+ggsave(
+  filename = here("output/fig_cwa_reasons.pdf"),
+  plot = fig_cwa_reasons,
+  dpi = 300,
+  units = 'cm',
+  height = 14,
+  width = 35
+)
+
+
+```
+
+```{r, which technology by download, fig.width = 14, fig.height= 5}
+
+
+rki_tech3 <- data_3 %>% select(id, RKI_technology, RKI_download)%>%
+  drop_na()%>%
+group_by(RKI_technology,RKI_download) %>%
+   summarise(n = n(), .groups = "keep") %>%
+mutate(RKI_technology = factor(
+    RKI_technology,
+    levels = c(1, 2, 3, 4),
+    labels = c("Bluetooth", "Location data", "Mobile tower data", "I do not know" )
+  )) %>%
+  mutate(RKI_download = factor(
+    RKI_download,
+    levels = c(1, 2),
+    labels = c("yes", "no")
+  )) %>% 
+  ungroup()%>% 
+  pivot_wider(names_from = "RKI_download", values_from = "n") %>% 
+  mutate(sum_yes = sum(yes), sum_no = sum(no)) %>% 
+  mutate(Yes = round((yes / sum_yes) * 100)) %>% 
+  mutate(No = round((no / sum_no) * 100)) %>% 
+  select(-c(sum_yes, sum_no, yes, no)) %>% 
+  pivot_longer (names_to = "download", values_to = "perc", cols = Yes:No) %>% 
+  mutate(wave = "Wave 3")
+
+
+rki_tech4 <- data_4 %>% select(id, RKI_technology, RKI_download)%>%
+  drop_na()%>%
+group_by(RKI_technology,RKI_download) %>%
+   summarise(n = n(), .groups = "keep") %>%
+mutate(RKI_technology = factor(
+    RKI_technology,
+    levels = c(1, 2, 3, 4),
+    labels = c("Bluetooth", "Location data", "Mobile tower data", "I do not know" )
+  )) %>%
+  mutate(RKI_download = factor(
+    RKI_download,
+    levels = c(1, 2),
+    labels = c("yes", "no")
+  )) %>% 
+  ungroup()%>% 
+  pivot_wider(names_from = "RKI_download", values_from = "n") %>% 
+  mutate(sum_yes = sum(yes), sum_no = sum(no)) %>% 
+  mutate(Yes = round((yes / sum_yes) * 100)) %>% 
+  mutate(No = round((no / sum_no) * 100)) %>% 
+  select(-c(sum_yes, sum_no, yes, no)) %>% 
+  pivot_longer (names_to = "download", values_to = "perc", cols = Yes:No) %>% 
+  mutate(wave = "Wave 4")
+
+
+rki_tech <- rbind(rki_tech3, rki_tech4) %>% 
+   mutate(download = factor(
+    download,
+    levels = c("Yes", "No"),
+    labels = c("CWA download: Yes", "CWA download: No")
+  ))
+
+
+
+rki_tech_fig <- rki_tech %>% 
+  ggplot(aes(
+    x = reorder(RKI_technology, perc),
+    y = perc,
+    fill = wave
+  )) +
+  geom_col(position = "dodge", width = 0.8) +
+  scale_fill_manual(values = c("steelblue", "#4cbc7c")) +
+   geom_text(
+    aes(x = RKI_technology, y = perc,
+        label = perc),
+    size = 3.5,
+    vjust = -0.1,
+    colour = "black",
+    alpha = 0.8,
+    fontface = "bold", position = position_dodge(0.9),
+    inherit.aes = TRUE
+      ) +
+   facet_wrap( ~ download, scales = 'free_x', labeller = label_value) +
+  ylim(0, 100) +
+  theme_nice() +
+  theme(legend.position = "bottom", legend.title = element_blank()) +
+  labs(title = "What technology does the Corona-Warn-App (CWA) use?", y = "% of respondents", x =
+         "") 
+rki_tech_fig
+
+ggsave(
+  filename = here("output/rki_tech_fig.pdf"),
+  plot = rki_tech_fig,
+  dpi = 300,
+  units = 'cm',
+  height = 10,
+  width = 24
+)
+
+```
+
+```{r, who has data aceess by download, fig.width = 7, fig.height= 8}
+
+
+rki_data4  <- data_4 %>% select(RKI_data_access, RKI_download) %>% 
+  mutate(whohasaccess = str_split(string = RKI_data_access,
+                             pattern = ",")) %>%
+  unnest(whohasaccess) %>% 
+  drop_na() %>%
+  filter(whohasaccess > 0) %>%
+  mutate(id = row_number()) %>%
+  select(-RKI_data_access)  %>% 
+  group_by(whohasaccess, RKI_download) %>% 
+  summarise(n = n(), .groups = "keep") %>% 
+mutate(whohasaccess = factor(
+    whohasaccess,
+    levels = c(1, 2, 3, 4, 5, 6, 7),
+    labels = c("Employees of the\nresponsible\nhealth authority", "Robert-Koch\nInstitute", "Deutsche\nTelekom", "Nobody", "The public", "Scientists", "I don't know")
+  )) %>% 
+  mutate(RKI_download = factor(
+    RKI_download,
+    levels = c(1, 2),
+    labels = c("yes", "no")
+  )) %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = "RKI_download", values_from = "n") %>% 
+  mutate(sum_yes = sum(yes), sum_no = sum(no)) %>% 
+  mutate(Yes = round((yes / sum_yes) * 100)) %>% 
+  mutate(No = round((no / sum_no) * 100)) %>% 
+  select(-c(sum_yes, sum_no, yes, no)) %>% 
+  pivot_longer (names_to = "download", values_to = "perc", cols = Yes:No)%>% 
+  mutate(download = factor(
+    download,
+    levels = c("Yes", "No"),
+    labels = c("CWA download: Yes", "CWA download: No")
+  )) 
+
+
+
+rki_data_fig <- rki_data4 %>% 
+  ggplot(aes(
+    x = reorder(whohasaccess, perc),
+    y = perc
+  )) +
+  geom_col(fill = "#4cbc7c", width = 0.8) +
+   geom_text(
+    aes(x = whohasaccess, y = perc,
+        label = perc),
+    size = 3.5,
+   vjust = -0.1,
+    colour = "black",
+    alpha = 0.8,
+    fontface = "bold",
+    inherit.aes = TRUE
+  ) +
+   facet_wrap(~ download, dir = "v", scales = 'free_x', labeller = label_value) +
+  ylim(0, 50) +
+  theme_nice() +
+  theme(legend.position = "bottom") +
+  labs(title = "Who has data access?", y = "% of Respondents", x =
+         "", caption = "If someone using the CWA tests positive and agrees to share that information with the app, who has access to that data?") 
+rki_data_fig
+
+ggsave(
+  filename = here("output/rki_data_fig.pdf"),
+  plot = rki_data_fig,
+  dpi = 300,
+  units = 'cm',
+  height = 17,
+  width = 18
+)
+
+```
+
+
+```{r, CWA usage,  fig.width = 18, fig.height= 10}
+
+
+cwa_use3 <- data_3 %>% dplyr::select (id, RKI_download, RKI_left_installed, RKI_blutooth, RKI_friends_family, RKI_future_download, RKI_mandatory)%>%
+   mutate(RKI_download = factor(
+   RKI_download,
+    levels = c(1, 2),
+    labels = c("Yes", "No") 
+  )) %>%
+  mutate(RKI_left_installed = factor(
+   RKI_left_installed,
+    levels = c(1, 0),
+    labels = c("Yes", "No") 
+  )) %>%
+  mutate(RKI_blutooth = factor(
+   RKI_blutooth,
+    levels = c(1, 2, 3, 4),
+    labels = c("Yes", "Only when I leave the house", "No", "I don't know") 
+  )) %>%
+  mutate(RKI_friends_family = factor(
+   RKI_friends_family,
+    levels = c(1, 0),
+    labels = c("Yes", "No") 
+  ))%>%
+  mutate(RKI_future_download = factor(
+   RKI_future_download,
+    levels = c(1, 0),
+    labels = c("Yes", "No") 
+  ))%>%
+  mutate(RKI_mandatory = factor(
+   RKI_mandatory,
+    levels = c(1, 0),
+    labels = c("Yes", "No") 
+  ))%>%
+  pivot_longer(names_to = "CoronaWarnApp_Use", 
+               values_to = "Answer",
+            cols= RKI_download:RKI_mandatory) %>%
+  mutate(CoronaWarnApp_Use = factor (CoronaWarnApp_Use,levels = c("RKI_download", "RKI_left_installed", "RKI_blutooth","RKI_friends_family", "RKI_future_download", "RKI_mandatory"),
+ )) %>%
+  group_by(CoronaWarnApp_Use, Answer, .drop = FALSE) %>%
+  drop_na()%>%
+  summarise(n = n(), .groups = "keep") %>%
+  filter(n>0) %>%
+  group_by(CoronaWarnApp_Use) %>% 
+  mutate(
+    prop = n / sum(n),
+    perc = round(100*(prop),1)
+    ) %>% 
+select(-prop) %>% 
+  mutate(wave= "Wave 3")
+cwa_use3
+
+cwa_use4 <- data_4 %>% dplyr::select (id, RKI_download,RKI_left_installed, RKI_blutooth, RKI_friends_family, RKI_future_download, RKI_mandatory)%>%
+   mutate(RKI_download = factor(
+   RKI_download,
+    levels = c(1, 2),
+    labels = c("Yes", "No") 
+  )) %>%
+    mutate(RKI_left_installed = factor(
+   RKI_left_installed,
+    levels = c(1, 0),
+    labels = c("Yes", "No") 
+  )) %>%
+  mutate(RKI_blutooth = factor(
+   RKI_blutooth,
+    levels = c(1, 2, 3, 4),
+    labels = c("Yes", "Only when I leave the house", "No", "I don't know") 
+  )) %>%
+  mutate(RKI_friends_family = factor(
+   RKI_friends_family,
+    levels = c(1, 0),
+    labels = c("Yes", "No") 
+  ))%>%
+  mutate(RKI_future_download = factor(
+   RKI_future_download,
+    levels = c(1, 0),
+    labels = c("Yes", "No") 
+  ))%>%
+  mutate(RKI_mandatory = factor(
+   RKI_mandatory,
+    levels = c(1, 0),
+    labels = c("Yes", "No") 
+  ))%>%
+  pivot_longer(names_to = "CoronaWarnApp_Use", 
+               values_to = "Answer",
+            cols= RKI_download:RKI_mandatory) %>%
+  mutate(CoronaWarnApp_Use = factor (CoronaWarnApp_Use,levels = c("RKI_download",  "RKI_left_installed", "RKI_blutooth","RKI_friends_family", "RKI_future_download", "RKI_mandatory"),
+ )) %>%
+  group_by(CoronaWarnApp_Use, Answer, .drop = FALSE) %>%
+  drop_na()%>%
+  summarise(n = n(), .groups = "keep") %>%
+  filter(n>0) %>%
+  group_by(CoronaWarnApp_Use) %>% 
+  mutate(
+    prop = n / sum(n),
+    perc = round(100*(prop),1)
+    ) %>% 
+select(-prop) %>% 
+  mutate(wave= "Wave 4")
+cwa_use4
+
+cwa_use <- rbind(cwa_use3,cwa_use4) %>% 
+  select(-n) %>% 
+  pivot_wider(names_from = "wave", values_from = "perc") %>% 
+  ungroup() %>% 
+  select(-CoronaWarnApp_Use)
+cwa_use
+
+
+
+
+ table_cwa_use <- cwa_use  %>%
+  kbl(col.names = c("", "wave3", "wave4")) %>%
+  kable_paper("striped", full_width = F) %>%
+   column_spec(2, bold = T)%>%
+     column_spec(2, bold = T, color = "white", background = "steelblue")%>%
+column_spec(3, bold = T)%>%
+     column_spec(3, bold = T, color = "white", background = "#71CA97")%>%
+   # remove_column(1)%>%
+     pack_rows("Have you downloaded the Corona-Warn-App? (all participants)", 1, 2) %>%
+    pack_rows("Does the Corona-Warn-App remain installed on your phone? (participants who downloaded the app", 3, 4)%>%
+   pack_rows("Do you generally have bluetooth switched on so the the Corona-Warn-App app can operate effectively? (participants who have the App still installed)", 5, 8)%>%
+   pack_rows("Have you made any attempts to convince your friends and/or family to download the Corona-Warn-App? (participants who had downloaded the app)", 9, 10)%>%
+   pack_rows("Will you download the Corona-Warn-App in the future? (among participants who did not download the app)", 11, 12)%>%
+    pack_rows("Do you think that the government should make the Corona-Warn-App mandatory?", 13, 14)%>%
+  footnote (general = "", general_title = "", footnote_as_chunk = T, title_format = c("italic"))
+table_cwa_use
+
+
+
+
+table_cwa_use_tex <- cwa_use %>%
+  kbl(booktabs = TRUE,
+    caption = "CWA usage \\label{tbl:use}",
+    table.envir = "table*",
+    col.names = c("","Wave 3", "Wave4"),
+    align = c("l","l", "l"),
+    format = "latex"
+) %>%
+  kable_paper("striped", full_width = F, position = "left") %>%
+      pack_rows("Have you downloaded the CWA?", 1, 2) %>%
+    pack_rows("Does the CWA remain installed on your phone?", 3, 4)%>%
+   pack_rows("Do you generally have bluetooth switched on so the the CWA app can operate effectively?", 5, 8)%>%
+   pack_rows("Have you made any attempts to convince your friends and/or family to download the CWA?", 9, 10)%>%
+   pack_rows("Will you download the CWA in the future?", 11, 12) %>% 
+  pack_rows("Do you think that the government should make the CWA mandatory?", 13, 14)
+
+write_lines(table_cwa_use_tex, here("output/tbl_cwause.tex"))
+
+```
+
+
+```{r, cwa download by gender}
+cwa_gender3 <- data_3 %>% dplyr::select (id, RKI_download, gender) %>%
+  mutate(RKI_download = factor(
+    RKI_download,
+    levels = c(1, 2),
+    labels = c("Yes", "No")
+  )) %>%
+  mutate(gender = factor(
+    gender,
+    levels = c(1, 2, 3),
+    labels = c("male", "female", "other")
+  )) %>%
+  group_by(gender, RKI_download,  .drop = FALSE) %>%
+  summarise(n = n(), .groups = "keep") %>%
+  ungroup() %>%
+  group_by(gender) %>%
+  mutate(N = sum(n)) %>%
+  mutate(perc = round(n / N * 100)) %>%
+  # select(-n,-N) %>%
+  mutate(wave = "wave3")
+
+
+cwa_gender4 <- data_4 %>% dplyr::select (id, RKI_download, gender) %>%
+  mutate(RKI_download = factor(
+    RKI_download,
+    levels = c(1, 2),
+    labels = c("Yes", "No")
+  )) %>%
+  mutate(gender = factor(
+    gender,
+    levels = c(1, 2, 3),
+    labels = c("male", "female", "other")
+  )) %>%
+  group_by(gender, RKI_download, .drop = FALSE) %>%
+  summarise(n = n(), .groups = "keep") %>%
+  ungroup() %>%
+  group_by(gender) %>%
+  mutate(N = sum(n)) %>%
+  mutate(perc = round(n / N * 100)) %>%
+  # select(-n,-N) %>%
+  mutate(wave = "Wave 4")
+
+
+cwa_gender <- rbind(cwa_gender3, cwa_gender4) %>%
+  filter(gender == "male" | gender == "female")
+
+
+cwa_gender_fig <- cwa_gender %>%
+  ggplot(aes(x = RKI_download,
+             y = perc, fill = wave)) +
+  geom_col(position = "dodge", width = 0.8) +
+  scale_fill_manual(values = c("steelblue", "#4cbc7c")) +
+  geom_text(
+    aes(x = RKI_download, y = perc,
+        label = perc),
+    size = 3.5,
+    vjust = -0.1,
+    colour = "black",
+    alpha = 0.8,
+    fontface = "bold",
+    position = position_dodge(0.9),
+    inherit.aes = TRUE
+  ) +
+  geom_text(
+    aes(x = RKI_download, y = perc,
+        label = n),
+    size = 2,
+    vjust = 1.2,
+    colour = "white",
+    alpha = 0.8,
+    position = position_dodge(0.9),
+    inherit.aes = TRUE
+  ) +
+  facet_wrap(~ gender, scales = 'free_x') +
+  ylim(0, 100) +
+  theme_nice() +
+  labs(title = "Corona-Warn-App (CWA download by gender)", y = "% of respondents", x =
+         "")+
+    theme(legend.position = "none") 
+cwa_gender_fig
+```
+
+```{r, cwa download by education}
+
+cwa_edu3 <- data_3 %>% dplyr::select (id, RKI_download, education) %>%
+  mutate(RKI_download = factor(
+    RKI_download,
+    levels = c(1, 2),
+    labels = c("Yes", "No")
+  )) %>%
+  mutate(education = factor(
+    education,
+    levels = c(1, 2, 3, 5, 4),
+    labels = c("low", "low", "medium", "high", "low")
+  ))  %>%
+  group_by(education, RKI_download, .drop = FALSE) %>%
+  summarise(n = n(), .groups = "keep") %>%
+  ungroup() %>%
+  group_by(education) %>%
+  mutate(N = sum(n)) %>%
+  mutate(perc = round(n / N * 100)) %>%
+  mutate(wave = "Wave 3")
+
+
+cwa_edu4 <- data_4 %>% dplyr::select (id, RKI_download, education) %>%
+  mutate(RKI_download = factor(
+    RKI_download,
+    levels = c(1, 2),
+    labels = c("Yes", "No")
+  )) %>%
+  mutate(education = factor(
+    education,
+    levels = c(1, 2, 3, 5, 4),
+    labels = c("low", "low", "medium", "high", "low")
+  ))  %>%
+  group_by(education, RKI_download, .drop = FALSE) %>%
+  summarise(n = n(), .groups = "keep") %>%
+  ungroup() %>%
+  group_by(education) %>%
+  mutate(N = sum(n)) %>%
+  mutate(perc = round(n / N * 100)) %>%
+  mutate(wave = "Wave 4")
+
+
+cwa_edu <- rbind(cwa_edu3, cwa_edu4)
+
+
+cwa_edu_fig <- cwa_edu %>%
+  ggplot(aes(x = RKI_download,
+             y = perc, fill = wave)) +
+  geom_col(position = "dodge", width = 0.8) +
+  scale_fill_manual(values = c("steelblue", "#4cbc7c")) +
+  geom_text(
+    aes(x = RKI_download, y = perc,
+        label = perc),
+    size = 3.5,
+    vjust = -0.1,
+    colour = "black",
+    alpha = 0.8,
+    fontface = "bold",
+    position = position_dodge(0.9),
+    inherit.aes = TRUE
+  ) +
+  geom_text(
+    aes(x = RKI_download, y = perc,
+        label = n),
+    size = 2,
+    vjust = 1.2,
+    colour = "white",
+    alpha = 0.8,
+    position = position_dodge(0.9),
+    inherit.aes = TRUE
+  ) +
+  facet_wrap(~ education, scales = 'free_x', labeller = label_value) +
+  ylim(0, 100) +
+  theme_nice() +
+  theme(legend.position = "none") +
+  labs(title = "CWA download by education", y = "% of respondents", x =
+         "")
+cwa_edu_fig
+
+
+
+```
+
+```{r, cwa download by age}
+
+
+cwa_age3 <- data_3 %>% dplyr::select (id, RKI_download, age) %>%
+  mutate(RKI_download = factor(
+    RKI_download,
+    levels = c(1, 2),
+    labels = c("Yes", "No")
+  )) %>%
+  group_by(RKI_download, .drop = FALSE) %>%
+  mutate(wave = "Wave 3")
+
+
+cwa_age4 <- data_4 %>% dplyr::select (id, RKI_download, age) %>%
+  mutate(RKI_download = factor(
+    RKI_download,
+    levels = c(1, 2),
+    labels = c("Yes", "No")
+  )) %>%
+  group_by(RKI_download, .drop = FALSE) %>%
+  
+  mutate(wave = "Wave 4")
+
+
+cwa_age <- rbind(cwa_age3, cwa_age4)
+
+
+cwa_age_mean <- cwa_age %>%
+  group_by(RKI_download, wave) %>%
+  summarise(mean = mean(age))
+
+
+cwa_age_fig <- cwa_age %>%
+  ggplot(aes(x = RKI_download, y = age), trim = FALSE) +
+  geom_boxplot(varwidth = TRUE, aes(fill = wave)) +
+  scale_fill_manual(name = "Wave",
+                    values = c("steelblue", "#4cbc7c")) +
+  geom_jitter(
+    color = "steelblue",
+    size = 0.2,
+    alpha = 0.15,
+    inherit.aes = TRUE
+  ) +
+  labs(title = 'CWA download by age',
+       x = '',
+       y = expression('Age')) +
+  theme_nice() +
+  theme(legend.position = "bottom", legend.title = element_blank())
+cwa_age_fig 
+
+
+```
+
+```{r, cwa download by demographics combined, fig.width = 10, fig.height= 12}
+
+cwa_dem_fig <-
+  ggarrange(cwa_gender_fig,
+            cwa_edu_fig,
+            cwa_age_fig,
+            ncol = 1,
+            nrow = 3)
+cwa_dem_fig
+
+ggsave(
+  filename = here("output/cwa_dem_fig.pdf"),
+  plot = cwa_dem_fig,
+  dpi = 300,
+  units = 'cm',
+  height = 25,
+  width = 18
+)
+
+```
+
+
+
