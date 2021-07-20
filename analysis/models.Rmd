@@ -9,8 +9,8 @@ output: html_document
 if(!require("pacman")) install.packages("pacman"); library(pacman)
 p_load("tidyverse", "here", "readr", "lattice", "hexbin", "stargazer", "lme4", 
           "gridExtra", "stringr", "Hmisc","psych", "scales", "workflowr",
-          "readxl", "vioplot", "expss", "jtools", "broom", "kableExtra", "knitr",
-          "sjlabelled", "naniar", "summarytools", "GGally", "correlation", "dplyr", "janitor", "ggplot2", 'rio','survey', 'parsedate','sjPlot', 'sjmisc', "scales", "reshape2", "skimr", "kableExtra","testthat", "patchwork", "tidyr", "utils", "tidybayes", "ggalt", "ggstance", "ISLR", "rstanarm", "brms", "standardize", "mctest", "car", "pls", "corrplot", "corrgram", "wesanderson", "huxtable", "arm", "fastDummies")
+          "readxl", "jtools", "kableExtra", "knitr",
+          "sjlabelled",  "summarytools", "GGally", "correlation", "dplyr", "ggplot2", 'sjPlot', 'sjmisc', "scales", "reshape2",  "kableExtra","testthat", "patchwork", "tidyr", "utils", "ggalt", "ggstance", "ISLR", "rstanarm", "standardize", "mctest", "car", "pls", "corrplot", "corrgram", "huxtable", "arm", "fastDummies", "broom.mixed", "ggpubr")
 
 
 source(here('code/functions.R'))
@@ -22,6 +22,7 @@ knitr::opts_chunk$set(message = FALSE, warning = FALSE)
 
 
 ```{r load and filter data, include=FALSE, echo=FALSE}
+
 dat_path_1 <-
   here("data/tracking_survey_w1_public.csv")
 data_1 <- read.csv(dat_path_1) %>%
@@ -56,6 +57,7 @@ data_3 <- read.csv(dat_path_3) %>%
 colnames(data_3)
 dim(data_3)
 
+
 dat_path_4 <-
   here("data/tracking_survey_w4_public.csv")
 data_4 <- read.csv(dat_path_4) %>%
@@ -78,6 +80,7 @@ dim(data_4)
 Wave 3 - prepare variables
 
 ```{r, wave 3 covariates}
+
 
 mod3_data <- data_3 %>% dplyr::select(
   c(
@@ -110,19 +113,19 @@ mod3_data <- data_3 %>% dplyr::select(
     COVID_info_trust_2
   )
 ) %>%
-  dplyr::filter(gender<3) %>%
+  dplyr::filter(gender < 3) %>%
   drop_na
 
 
 acceptability <-
   mod3_data %>% dplyr::select(starts_with('acc_general_'))
 Acceptability <-
-  revscore(acceptability, 4) %>% apply(., 1, mean, trim = .2, na.rm = TRUE)  
+  revscore(acceptability, 4) %>% apply(., 1, mean, na.rm = TRUE)
 
 
 Libertarianism <-
   mod3_data %>% dplyr::select(c(wv_freemarket_best, wv_freemarket_lim, wv_lim_gov)) %>% mutate(wv_freemarket_lim_rev = revscore(wv_freemarket_lim, 7)) %>%
-  dplyr::select(-wv_freemarket_lim) %>% apply(., 1, mean, na.rm = TRUE)  
+  dplyr::select(-wv_freemarket_lim) %>% apply(., 1, mean, na.rm = TRUE)
 
 
 COVIDrisk <-
@@ -131,11 +134,11 @@ COVIDrisk <-
     COVID_pers_harm,
     COVID_pers_concern,
     COVID_concern4others
-  )) %>% apply(., 1, mean, na.rm = TRUE)  
+  )) %>% apply(., 1, mean, na.rm = TRUE)
 # 1 - sehr schwach
 
 Govguidelines_helpful <-
-  mod3_data %>% dplyr::select(Gov_helpful) %>% apply(., 1, mean, na.rm = TRUE)  
+  mod3_data %>% dplyr::select(Gov_helpful) %>% apply(., 1, mean, na.rm = TRUE)
 # 1 = Gar nicht hilfreich
 
 COVID_govresponse =  revscore(mod3_data$COVID_govresponse_3, 5) # 1 = extrem gut (reverse to 1 = gar nicht gut)
@@ -146,13 +149,14 @@ Germany_handling_thepandemic <- COVID_govresponse
 Conspiracism <- mod3_data %>% dplyr::select(contains("Conspir")) %>%
   mutate(Conspir_4 = revscore(Conspir_4_REV, 5)) %>%
   dplyr::select(-Conspir_4_REV) %>%
-  apply(., 1, mean, na.rm = TRUE)  
+  apply(., 1, mean, na.rm = TRUE)
 
 
 # 1 = Falsch
 
-Scitech_positive <- mod3_data  %>% dplyr::select(starts_with('sci')) %>%
-  apply(., 1, mean, na.rm = TRUE)  
+Scitech_positive <-
+  mod3_data  %>% dplyr::select(starts_with('sci')) %>%
+  apply(., 1, mean, na.rm = TRUE)
 # 1 - stimme nicht zu
 
 
@@ -165,25 +169,24 @@ Education_recode = dplyr::recode(
   `5` = "high",
   .default = NULL
 )
-Education <- factor(Education_recode, ordered = TRUE, levels = c("low", "medium", "high")) 
+Education <-
+  factor(Education_recode,
+         ordered = TRUE,
+         levels = c("low", "medium", "high"))
 
-
-RKI_download = dplyr::recode(
-  mod3_data$RKI_download,
-  `1` = 1,
-  `2` = 0,
-  .default = NULL
-)
+RKI_download = dplyr::recode(mod3_data$RKI_download,
+                             `1` = 1,
+                             `2` = 0)
 CWA_download <- RKI_download
 
 
 Trust_appsecurity <-
-  mod3_data %>% dplyr::select(starts_with("trust"),  data_security_bt) %>% apply(., 1, mean, na.rm =
-                                                                            TRUE)  
+  mod3_data %>% dplyr::select(starts_with("trust"),  proportionality_bt, data_security_bt) %>% apply(., 1, mean, na.rm =
+                                                                                                       TRUE)
 
 CWA_effectiveness <-
   mod3_data %>% dplyr::select(reduce_lik_bt, return_activ_fut, reduce_spread_fut) %>% apply(., 1, mean, na.rm =
-                                                                                       TRUE)  
+                                                                                              TRUE)
 
 Risk_of_harm <- mod3_data$risk_of_harm_bt
 
@@ -202,15 +205,16 @@ Age <- mod3_data$age
 
 Socialmedia_source_and_trust <-
   mod3_data %>% dplyr::select(COVID_info_source_2, COVID_info_trust_2) %>% apply(., 1, mean, na.rm =
-                                                                            TRUE)  
+                                                                                   TRUE)
 
 Govannouncements_source_and_trust <-
   mod3_data %>% dplyr::select(COVID_info_source_6, COVID_info_trust_6) %>% apply(., 1, mean, na.rm =
-                                                                            TRUE)  
+                                                                                   TRUE)
 
 
 model_data3 <-
-     as.data.frame(cbind(
+  as.data.frame(
+    cbind(
       CWA_download,
       Acceptability,
       Libertarianism,
@@ -221,17 +225,22 @@ model_data3 <-
       Trust_appsecurity,
       Risk_of_harm,
       Education,
-           Age,
+      Age,
       CWA_effectiveness,
       Germany_handling_thepandemic,
       Socialmedia_source_and_trust,
       Govannouncements_source_and_trust,
       Gender_male
-    ) ) %>% mutate(Education = factor(Education, ordered = FALSE,  levels = c(2, 1, 3), labels = c("medium", "low", "high")) )
+    )
+  ) %>% mutate(Education = factor(
+    Education,
+    ordered = FALSE,
+    levels = c(2, 1, 3),
+    labels = c("medium", "low", "high")
+  ))
 
-contrasts(model_data3$Education) <- contr.treatment(levels(model_data3$Education))
-
-
+contrasts(model_data3$Education) <-
+  contr.treatment(levels(model_data3$Education))
 
 
 ```
@@ -280,12 +289,12 @@ mod4_data <- data_4 %>% dplyr::select(
 acceptability <-
   mod4_data %>% dplyr::select(starts_with('acc_general_'))
 Acceptability <-
-  revscore(acceptability, 4) %>% apply(., 1, mean, trim = .2, na.rm = TRUE)  
+  revscore(acceptability, 4) %>% apply(., 1, mean, na.rm = TRUE)
 
 
 Libertarianism <-
   mod4_data %>% dplyr::select(c(wv_freemarket_best, wv_freemarket_lim, wv_lim_gov)) %>% mutate(wv_freemarket_lim_rev = revscore(wv_freemarket_lim, 7)) %>%
-  dplyr::select(-wv_freemarket_lim) %>% apply(., 1, mean, na.rm = TRUE)  
+  dplyr::select(-wv_freemarket_lim) %>% apply(., 1, mean, na.rm = TRUE)
 
 
 COVIDrisk <-
@@ -294,26 +303,28 @@ COVIDrisk <-
     COVID_pers_harm,
     COVID_pers_concern,
     COVID_concern4others
-  )) %>% apply(., 1, mean, na.rm = TRUE)  
+  )) %>% apply(., 1, mean, na.rm = TRUE)
 
 
 
 Govguidelines_helpful <-
-  mod4_data  %>% dplyr::select(Gov_helpful) %>% apply(., 1, mean, na.rm = TRUE)  
+  mod4_data  %>% dplyr::select(Gov_helpful) %>% apply(., 1, mean, na.rm = TRUE)
 
 COVID_govresponse4 =  revscore(mod4_data$COVID_govresponse_3, 5) # 1 = extrem gut (reverse to 1 = gar nicht gut)
 Germany_handling_thepandemic <-
- COVID_govresponse4
+  COVID_govresponse4
 
 
-Conspiracism <- mod4_data  %>% dplyr::select(contains("Conspir")) %>%
+Conspiracism <-
+  mod4_data  %>% dplyr::select(contains("Conspir")) %>%
   mutate(Conspir_6 = revscore(Conspir_6_rev, 5)) %>%
   dplyr::select(-Conspir_6_rev) %>%
-  apply(., 1, mean, trim = .2, na.rm = TRUE)  
+  apply(., 1, mean, na.rm = TRUE)
 
 
-Scitech_positive <- mod4_data  %>% dplyr::select(starts_with('sci')) %>%
-  apply(., 1, mean, na.rm = TRUE)  
+Scitech_positive <-
+  mod4_data  %>% dplyr::select(starts_with('sci')) %>%
+  apply(., 1, mean, na.rm = TRUE)
 
 # recode eductaion to group categories into none (4 --> 1), low(real (1) and haupt-schule (2) --> 2), medium (abitur=3), and high(uni=5 --> 4)
 
@@ -326,7 +337,10 @@ Education_recode = dplyr::recode(
   `5` = "high",
   .default = NULL
 )
-Education <- factor(Education_recode, ordered = TRUE, levels = c("low", "medium", "high")) 
+Education <-
+  factor(Education_recode,
+         ordered = TRUE,
+         levels = c("low", "medium", "high"))
 
 
 
@@ -338,24 +352,25 @@ RKI_download = dplyr::recode(
 )
 CWA_download <- RKI_download
 
+
 Trust_appsecurity <-
-  mod4_data %>% dplyr::select(starts_with("trust"), data_security_bt) %>% apply(., 1, mean, na.rm =
-                                                                           TRUE)  
+  mod4_data %>% dplyr::select(starts_with("trust"), data_security_bt, proportionality_bt) %>% apply(., 1, mean, na.rm =
+                                                                                                      TRUE)
 
 CWA_effectiveness <-
   mod4_data %>% dplyr::select(reduce_lik_bt, return_activ_fut, reduce_spread_fut) %>% apply(., 1, mean, na.rm =
-                                                                                       TRUE)  
+                                                                                              TRUE)
 
 Risk_of_harm <- mod4_data$risk_of_harm_bt
 
 
 Socialmedia_source_and_trust <-
   mod4_data %>% dplyr::select(COVID_info_source_2, COVID_info_trust_2) %>% apply(., 1, mean, na.rm =
-                                                                            TRUE)  
+                                                                                   TRUE)
 
 Govannouncements_source_and_trust <-
   mod4_data %>% dplyr::select(COVID_info_source_6, COVID_info_trust_6) %>% apply(., 1, mean, na.rm =
-                                                                            TRUE)  
+                                                                                   TRUE)
 
 Gender_recode_male = dplyr::recode(mod4_data$gender,
                                    `1` = 1,
@@ -367,7 +382,8 @@ Age <- mod4_data$age
 
 
 model_data4 <-
-     as.data.frame(cbind(
+  as.data.frame(
+    cbind(
       CWA_download,
       Acceptability,
       Libertarianism,
@@ -377,21 +393,23 @@ model_data4 <-
       Govguidelines_helpful,
       Trust_appsecurity,
       Risk_of_harm,
-     Education,
-          Age,
+      Education,
+      Age,
       CWA_effectiveness,
       Germany_handling_thepandemic,
       Socialmedia_source_and_trust,
       Govannouncements_source_and_trust,
       Gender_male
-    )) %>% mutate(Education = factor(Education, ordered = FALSE,  levels = c(2, 1, 3), labels = c("medium", "low", "high")) )
- 
-contrasts(model_data4$Education) <- contr.treatment(levels(model_data4$Education))
+    )
+  ) %>% mutate(Education = factor(
+    Education,
+    ordered = FALSE,
+    levels = c(2, 1, 3),
+    labels = c("medium", "low", "high")
+  ))
 
-
-
-
-
+contrasts(model_data4$Education) <-
+  contr.treatment(levels(model_data4$Education))
 
 
 
@@ -401,24 +419,71 @@ contrasts(model_data4$Education) <- contr.treatment(levels(model_data4$Education
 
 ```{r, Correlation matrices}
 
+corr_df3 <- model_data3
+
+colnames(corr_df3) <-
+  c(
+    "CWA download",
+    "Acceptance of privacy limits",
+    "Libertarianism",
+    "Belief in conspiracies",
+    "Attitudes to science and technology",
+    "COVID19 risk perception",
+    "Find government guidelines helpful",
+    "Trust in CWA security",
+    "CWA risk of harm perception",
+    "Education",
+    "Age",
+    "Belief in CWA effectiveness",
+    "Approval of German pandemic response",
+    "Social media use and trust",
+    "Government announcements use and trust",
+    "Gender male"
+  )
+
+
 corr_data3 <-
-  model_data3 %>% ggcorr(
+  corr_df3 %>% ggcorr(
     label = TRUE,
     label_alpha = TRUE,
     method = c("pairwise", "pearson"),
     hjust = 1,
-    layout.exp = 4
-  ) +  theme_nice() +
+    layout.exp = 6
+  ) +
+  theme_nice() +
   labs(title = "Correlation matrix: Wave 3")
 
 
+corr_df4 <- model_data4
+
+colnames(corr_df4) <-
+  c(
+    "CWA download",
+    "Acceptance of privacy limits",
+    "Libertarianism",
+    "Belief in conspiracies",
+    "Attitudes to science and technology",
+    "COVID19 risk perception",
+    "Find government guidelines helpful",
+    "Trust in CWA security",
+    "CWA risk of harm perception",
+    "Education",
+    "Age",
+    "Belief in CWA effectiveness",
+    "Approval of German pandemic response",
+    "Social media use and trust",
+    "Government announcements use and trust",
+    "Gender male"
+  )
+
 corr_data4 <-
-  model_data4 %>% ggcorr(
+  corr_df4 %>%  ggcorr(
     label = TRUE,
     label_alpha = TRUE,
     hjust = 1,
-    layout.exp = 4
-  ) +  theme_nice() +
+    layout.exp = 6
+  ) +
+  theme_nice() +
   labs(title = "Correlation matrix: Wave 4")
 
 
@@ -453,6 +518,7 @@ GLM (logistic regression): predictors for CWA download
 
 
 
+
 glm3 <-
   glm(
     CWA_download ~  Trust_appsecurity + CWA_effectiveness + Acceptability +  Germany_handling_thepandemic + Govguidelines_helpful + Socialmedia_source_and_trust + Govannouncements_source_and_trust + Conspiracism + Libertarianism + COVIDrisk + Scitech_positive +  Gender_male + Age + Risk_of_harm + Education,
@@ -463,28 +529,28 @@ glm3 <-
 #+ Education_high + Education_low + Education_medium
 glm4 <-
   glm(
-   CWA_download ~  Trust_appsecurity + CWA_effectiveness + Acceptability +  Germany_handling_thepandemic + Govguidelines_helpful + Socialmedia_source_and_trust + Govannouncements_source_and_trust + Conspiracism + Libertarianism + COVIDrisk + Scitech_positive +  Gender_male + Age + Risk_of_harm + Education,
+    CWA_download ~  Trust_appsecurity + CWA_effectiveness + Acceptability +  Germany_handling_thepandemic + Govguidelines_helpful + Socialmedia_source_and_trust + Govannouncements_source_and_trust + Conspiracism + Libertarianism + COVIDrisk + Scitech_positive +  Gender_male + Age + Risk_of_harm + Education,
     data = model_data4,
     family = "binomial"
   )
 
 
 glm3_s <- arm::standardize(
-    glm3,
-    standardize.y = FALSE,
-    binary.inputs = "center",
-    unchanged = "Education"
-    # unchanged = c("Education_high", "Education_low", "Education_medium")
+  glm3,
+  standardize.y = FALSE,
+  binary.inputs = "center",
+  unchanged = "Education"
+  # unchanged = c("Education_high", "Education_low", "Education_medium")
 )
 display(glm3_s)
 
 glm4_s <- arm::standardize(
-    glm4,
-    standardize.y = FALSE,
-    binary.inputs = "center",
-    unchanged = "Education"
-    # unchanged = c("Education_low", "Education_medium", "Education_high")
-    
+  glm4,
+  standardize.y = FALSE,
+  binary.inputs = "center",
+  unchanged = "Education"
+  # unchanged = c("Education_low", "Education_medium", "Education_high")
+  
 )
 display(glm4_s)
 
@@ -502,7 +568,7 @@ mr_plot <-
       "Trust in CWA security" = "z.Trust_appsecurity",
       "Perception of CWA effectiveness" = "z.CWA_effectiveness",
       "Acceptance of privacy limits" = "z.Acceptability",
-            "COVID-19 risk perception" = "z.COVIDrisk",
+      "COVID-19 risk perception" = "z.COVIDrisk",
       "Belief in conspiracies" = "z.Conspiracism",
       "Social media use & trust" = "z.Socialmedia_source_and_trust",
       "Government announcements use & trust" =
@@ -522,8 +588,10 @@ mr_plot <-
   ) +
   # xlim(0, 2.5) +
   theme_nice() +
-  labs(title = "Predictors of Corona-Warn-App (CWA) download")
+  labs(title = "Predictors of Corona-Warn-App (CWA) download", y = "")
 mr_plot
+
+
 
 
 ggsave(
@@ -531,7 +599,7 @@ ggsave(
   plot = mr_plot,
   dpi = 300,
   units = 'cm',
-  height = 15,
+  height = 20,
   width = 26
 )
 
@@ -555,7 +623,7 @@ stargazer(
     "COVID-19 risk perception",
     "Attitudes to science and technology",
     "Gender: male (vs. female)",
-      "Age",
+    "Age",
     "CWA risk of harm perception",
     "Education: low (vs. medium)",
     "Education: high  (vs. medium)"
@@ -570,6 +638,100 @@ stargazer(
 
 
 ```
+
+```{r}
+
+
+
+mr_plot_w3 <-
+  plot_summs(
+    glm3_s,
+    colors = c("cornflowerblue"),
+    legend.title = "Wave",
+    model.names = c("Wave 3"),
+    coefs = c(
+      "Trust in CWA security" = "z.Trust_appsecurity",
+      "Perception of CWA effectiveness" = "z.CWA_effectiveness",
+      "Acceptance of privacy limits" = "z.Acceptability",
+      "COVID-19 risk perception" = "z.COVIDrisk",
+      "Belief in conspiracies" = "z.Conspiracism",
+      "Social media use & trust" = "z.Socialmedia_source_and_trust",
+      "Government announcements use & trust" =
+        "z.Govannouncements_source_and_trust",
+      "Approval of German pandemic response" =
+        "z.Germany_handling_thepandemic",
+      "Find government guidelines helpful" =
+        "z.Govguidelines_helpful",
+      "Attitudes to science and technology" = "z.Scitech_positive",
+      "Libertarianism" = "z.Libertarianism",
+      "CWA risk of harm perception" = "z.Risk_of_harm",
+      "Age" = "z.Age",
+      "Gender: male (vs. female)" = "c.Gender_male",
+      "Education: low (vs. medium)" = "Educationlow",
+      "Education: high  (vs. medium)" = "Educationhigh"
+    )
+  ) +
+  theme_nice() +
+  theme(axis.title.y = element_blank()) +
+  theme (legend.position = "bottom") +
+  labs(title = "Predictors of CWA download: Wave 3", y = "")
+
+
+
+
+mr_plot_w4 <-
+  plot_summs(
+    glm4_s,
+    
+    colors = c("#4cbc7c"),
+    legend.title = "Wave",
+    model.names = c("Wave 4"),
+    coefs = c(
+      "Trust in CWA security" = "z.Trust_appsecurity",
+      "Perception of CWA effectiveness" = "z.CWA_effectiveness",
+      "Acceptance of privacy limits" = "z.Acceptability",
+      "COVID-19 risk perception" = "z.COVIDrisk",
+      "Belief in conspiracies" = "z.Conspiracism",
+      "Social media use & trust" = "z.Socialmedia_source_and_trust",
+      "Government announcements use & trust" =
+        "z.Govannouncements_source_and_trust",
+      "Approval of German pandemic response" =
+        "z.Germany_handling_thepandemic",
+      "Find government guidelines helpful" =
+        "z.Govguidelines_helpful",
+      "Attitudes to science and technology" = "z.Scitech_positive",
+      "Libertarianism" = "z.Libertarianism",
+      "CWA risk of harm perception" = "z.Risk_of_harm",
+      "Age" = "z.Age",
+      "Gender: male (vs. female)" = "c.Gender_male",
+      "Education: low (vs. medium)" = "Educationlow",
+      "Education: high  (vs. medium)" = "Educationhigh"
+    )
+  ) +
+  theme_nice() +
+  theme(axis.title.y = element_blank(),
+        axis.text.y = element_blank()) +
+  theme(legend.position = "bottom") +
+  labs(title = "Wave 4", y = "")
+
+
+
+mr_plot_comb <- ggarrange(mr_plot_w3, mr_plot_w4, widths = c(1, 0.6))
+mr_plot_comb
+
+
+ggsave(
+  filename = here("output/mr_plot_comb.pdf"),
+  plot = mr_plot_comb,
+  dpi = 300,
+  units = 'cm',
+  height = 20,
+  width = 30
+)
+
+
+```
+
 
 
 GLM(lm): predictors for Trust_appsecurity
@@ -597,20 +759,20 @@ lm4 <-
   )
 
 lm3_s <- standardize(
-    lm3,
-    unchanged = "Education",
-    standardize.y = TRUE,
-    binary.inputs = "center"
+  lm3,
+  unchanged = "Education",
+  standardize.y = TRUE,
+  binary.inputs = "center"
 )
 display(lm3_s)
 
 
 
 lm4_s <- standardize(
-    lm4,
-    unchanged = "Education",
-    standardize.y = TRUE,
-    binary.inputs = "center"
+  lm4,
+  unchanged = "Education",
+  standardize.y = TRUE,
+  binary.inputs = "center"
 )
 display(lm4_s)
 
@@ -622,28 +784,29 @@ lm_34 <- plot_summs(
   legend.title = "",
   colors = c("cornflowerblue", "#4cbc7c"),
   coefs = c(
-     "Acceptance of privacy limits" = "z.Acceptability",
-            "COVID-19 risk perception" = "z.COVIDrisk",
-      "Belief in conspiracies" = "z.Conspiracism",
-      "Social media use & trust" = "z.Socialmedia_source_and_trust",
-      "Government announcements use & trust" =
-        "z.Govannouncements_source_and_trust",
-      "Approval of German pandemic response" =
-        "z.Germany_handling_thepandemic",
-      "Find government guidelines helpful" =
-        "z.Govguidelines_helpful",
-      "Attitudes to science and technology" = "z.Scitech_positive",
-      "Libertarianism" = "z.Libertarianism",
-      "CWA risk of harm perception" = "z.Risk_of_harm",
-            "Gender: male (vs. female)" = "c.Gender_male",
-     "Age" = "z.Age",
-      "Education: low (vs. medium)" = "Educationlow",
-      "Education: high  (vs. medium)" = "Educationhigh"
+    "Acceptance of privacy limits" = "z.Acceptability",
+    "COVID-19 risk perception" = "z.COVIDrisk",
+    "Belief in conspiracies" = "z.Conspiracism",
+    "Social media use & trust" = "z.Socialmedia_source_and_trust",
+    "Government announcements use & trust" =
+      "z.Govannouncements_source_and_trust",
+    "Approval of German pandemic response" =
+      "z.Germany_handling_thepandemic",
+    "Find government guidelines helpful" =
+      "z.Govguidelines_helpful",
+    "Attitudes to science and technology" = "z.Scitech_positive",
+    "Libertarianism" = "z.Libertarianism",
+    "CWA risk of harm perception" = "z.Risk_of_harm",
+    "Gender: male (vs. female)" = "c.Gender_male",
+    "Age" = "z.Age",
+    "Education: low (vs. medium)" = "Educationlow",
+    "Education: high  (vs. medium)" = "Educationhigh"
   )
 ) +
   # xlim(-0.5, 0.5) +
   theme_nice() +
-  labs(subtitle = "Predictors of Trust in Corona-Warn-App (CWA) Security")
+  labs(subtitle = "Predictors of Trust in Corona-Warn-App (CWA) Security", y =
+         "")
 lm_34
 
 
@@ -663,9 +826,9 @@ stargazer(
     "Libertarianism",
     "COVID-19 risk perception",
     "Attitudes to science and tech",
-     "CWA risk of harm perception",
+    "CWA risk of harm perception",
     "Gender: male (vs. female)",
-      "Age",   
+    "Age",
     "Education: low (vs. medium)",
     "Education: high  (vs. medium)"
   ),
@@ -682,7 +845,7 @@ ggsave(
   plot = lm_34,
   dpi = 300,
   units = 'cm',
-  height = 15,
+  height = 20,
   width = 26
 )
 
@@ -705,18 +868,18 @@ lm4eff <-
   )
 
 lm3eff_s <- standardize(
-    lm3eff,
-    unchanged = "Education",
-    standardize.y = TRUE,
-    binary.inputs = "center"
+  lm3eff,
+  unchanged = "Education",
+  standardize.y = TRUE,
+  binary.inputs = "center"
 )
 display(lm3eff_s)
 
 lm4eff_s <- standardize(
-    lm4eff,
-    unchanged = "Education",
-    standardize.y = TRUE,
-    binary.inputs = "center"
+  lm4eff,
+  unchanged = "Education",
+  standardize.y = TRUE,
+  binary.inputs = "center"
 )
 display(lm4eff_s)
 
@@ -749,7 +912,7 @@ lm_34eff <- plot_summs(
 ) +
   # xlim(-0.5, 0.5) +
   theme_nice() +
-  labs(subtitle = "Predictors of perceived effectiveness of Corona-Warn-App (CWA)")
+  labs(subtitle = "Predictors of perceived effectiveness of Corona-Warn-App (CWA)", y = "")
 
 lm_34eff
 
@@ -789,7 +952,7 @@ ggsave(
   plot = lm_34eff,
   dpi = 300,
   units = 'cm',
-  height = 15,
+  height = 20,
   width = 26
 )
 
